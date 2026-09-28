@@ -1375,7 +1375,9 @@ export class HQ extends Agent<Env> {
         });
         let videoOn = false;
         try {
-          videoOn = higgsfieldEnabled(this.env);
+          // Auto video is opt-in (AUTO_VIDEO="1"): renders cost Higgsfield credits, and the per-card
+          // "Generate ad" button always works on demand.
+          videoOn = higgsfieldEnabled(this.env) && (this.env as Env & { AUTO_VIDEO?: string }).AUTO_VIDEO === "1";
         } catch {
           videoOn = false;
         }
