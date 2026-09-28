@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Cold Open — Mission Control</title>
+  <meta name="description" content="Cold Open: the agency that does the work before the sale. AI agents scout real small businesses around Cloudflare HQ, extract their brand, build and taste-gate a site, and attach a Stripe checkout — live." />
+  <meta name="theme-color" content="#0A0A0B" />
+  <meta name="color-scheme" content="dark" />
+  <meta property="og:title" content="Cold Open — Mission Control" />
+  <meta property="og:description" content="The agency that does the work before the sale." />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <a class="skip" href="#grid">Skip to businesses</a>
+  <div class="app" id="app">
+
+    <!-- ============ TOP BAR ============ -->
+    <header class="topbar" role="banner">
+      <div class="brand">
+        <svg class="brand__mark" viewBox="0 0 32 32" aria-hidden="true">
+          <rect x="8.5" y="8.5" width="15" height="15" rx="3.2" transform="rotate(45 16 16)" fill="#FF5B1F" />
+          <rect x="13.2" y="13.2" width="5.6" height="5.6" rx="1.4" transform="rotate(45 16 16)" fill="#0A0A0B" />
+        </svg>
+        <div class="brand__text">
+          <div class="brand__name">Cold <em>Open</em></div>
+          <div class="brand__sub"><span>Mission Control</span><span class="brand__loc" id="hq-label">101 Townsend St</span></div>
+        </div>
+      </div>
+
+      <div class="pills" id="pills" aria-label="Integrations"></div>
+
+      <nav class="actions" aria-label="Primary actions">
+        <button class="btn btn--ghost" id="btn-scout" type="button" data-shortcut="S">
+          <svg class="ico" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="10" cy="10" r="3.4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 10 L15.8 5.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <span class="btn__label">Scout the block</span><span class="btn__short">Scout</span><kbd>S</kbd>
+        </button>
+        <button class="btn btn--ghost" id="btn-run" type="button" data-shortcut="R">
+          <svg class="ico" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 4.5v11l10-5.5z" fill="currentColor"/></svg>
+          <span class="btn__label">Run the block</span><span class="btn__short">Run block</span><kbd>R</kbd>
+        </button>
+        <button class="btn btn--signal" id="btn-live" type="button" data-shortcut="L">
+          <span class="live-dot" aria-hidden="true"></span>
+          <span class="btn__label">Live challenge</span><span class="btn__short">Live</span><kbd>L</kbd>
+        </button>
+      </nav>
+
+      <div class="status">
+        <div class="conn" id="conn" data-state="connecting" role="status" aria-live="polite">
+          <span class="conn__dot" aria-hidden="true"></span><span class="conn__label">Connecting</span>
+        </div>
+        <div class="clock" id="clock" aria-label="San Francisco time">--:--:--</div>
+        <div class="menu-wrap">
+          <button class="icon-btn" id="btn-menu" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="More">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="4.5" cy="10" r="1.6" fill="currentColor"/><circle cx="10" cy="10" r="1.6" fill="currentColor"/><circle cx="15.5" cy="10" r="1.6" fill="currentColor"/></svg>
+          </button>
+          <div class="menu" id="menu" role="menu" hidden>
+            <button role="menuitem" type="button" data-menu="add">Add a business…</button>
+            <button role="menuitem" type="button" data-menu="shortcuts">Keyboard shortcuts</button>
+            <button role="menuitem" type="button" data-menu="sound"><span>Sound effects</span><span class="menu__state" id="sound-state">On</span></button>
+            <a role="menuitem" href="/api/state" target="_blank" rel="noopener">Raw state (JSON)</a>
+            <div class="menu__sep" role="separator"></div>
+            <button role="menuitem" type="button" data-menu="reset" class="danger">Reset demo…</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ============ STATS RIBBON / FUNNEL ============ -->
+    <section class="ribbon" id="ribbon" aria-label="Pipeline stats"></section>
+
+    <!-- ============ THE FLOOR ============ -->
+    <main class="floor" id="floor">
+
+      <section class="col col--map" aria-label="Map and crew">
+        <div class="panel panel--map">
+          <div class="panel__head">
+            <div class="kicker"><span class="kdot"></span>The block <span class="kicker__muted" id="map-sub">· SoMa</span></div>
+            <label class="radius">
+              <span>Radius</span>
+              <select id="radius" aria-label="Scout radius">
+                <option value="250">250 m</option>
+                <option value="450" selected>450 m</option>
+                <option value="700">700 m</option>
+                <option value="1000">1 km</option>
+              </select>
+            </label>
+          </div>
+          <div class="map" id="map" role="region" aria-label="Map of scouted businesses"></div>
+          <div class="map-legend" id="map-legend" aria-hidden="true"></div>
+        </div>
+        <div class="panel panel--crew">
+          <div class="panel__head">
+            <div class="kicker"><span class="kdot"></span>The crew <span class="kicker__muted">· 8 agents</span></div>
+            <div class="kicker kicker__muted" id="crew-sub"></div>
+          </div>
+          <div class="crew" id="crew"></div>
+        </div>
+      </section>
+
+      <section class="col col--grid" aria-label="Businesses">
+        <div class="grid-head">
+          <div class="grid-head__row">
+            <h1 class="grid-title">The Block <span class="grid-count" id="grid-count"></span></h1>
+            <div class="grid-tools">
+              <label class="search">
+                <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M13.2 13.2 17 17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+                <input id="search" type="search" placeholder="Search the block" autocomplete="off" aria-label="Search businesses" />
+              </label>
+              <select id="sort" aria-label="Sort businesses">
+                <option value="pipeline">Pipeline</option>
+                <option value="newest">Newest</option>
+                <option value="score">Taste score</option>
+                <option value="name">Name</option>
+              </select>
+            </div>
+          </div>
+          <div class="funnel" id="funnel" aria-label="Pipeline funnel"></div>
+          <div class="filters" id="grid-filters" role="toolbar" aria-label="Filter businesses by stage"></div>
+        </div>
+        <div class="grid-scroll" id="grid-scroll">
+          <div class="grid" id="grid" aria-live="off"></div>
+          <div class="empty" id="empty" hidden></div>
+        </div>
+      </section>
+
+      <section class="col col--channel" aria-label="Agent channel">
+        <div class="panel__head panel__head--channel">
+          <div class="kicker"><span class="kdot kdot--live"></span>#agent-channel <span class="kicker__muted" id="feed-count"></span></div>
+        </div>
+        <div class="chips" id="feed-filters" role="toolbar" aria-label="Filter agent messages"></div>
+        <div class="feed-wrap">
+          <ol class="feed" id="feed" aria-live="polite" aria-relevant="additions"></ol>
+          <button class="feed-jump" id="feed-jump" type="button" hidden>New messages ↓</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ============ DETAILS DRAWER ============ -->
+  <div class="scrim" id="drawer-scrim" hidden></div>
+  <aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" hidden>
+    <div class="drawer__inner" id="drawer-inner"></div>
+  </aside>
+
+  <!-- ============ LIVE CHALLENGE ============ -->
+  <div class="challenge" id="challenge" role="dialog" aria-modal="true" aria-labelledby="ch-title" hidden>
+    <div class="challenge__panel" id="challenge-panel"></div>
+  </div>
+
+  <!-- ============ DIALOG (confirm / forms) ============ -->
+  <div class="dialog" id="dialog" role="dialog" aria-modal="true" hidden>
+    <div class="dialog__panel" id="dialog-panel"></div>
+  </div>
+
+  <div class="toasts" id="toasts" aria-live="assertive" aria-atomic="false"></div>
+  <canvas class="confetti" id="confetti" aria-hidden="true"></canvas>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="" defer></script>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

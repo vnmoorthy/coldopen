@@ -1,0 +1,19 @@
+{
+  "name": "coldopen",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "agents": "latest"
+  },
+  "devDependencies": {
+    "wrangler": "^4.143.0",
+    "typescript": "^5.6.0",
+    "@cloudflare/workers-types": "latest"
+  }
+}
