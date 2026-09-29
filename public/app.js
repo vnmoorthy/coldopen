@@ -10,15 +10,16 @@ let PASS = 85; // taste bar; replaced by /api/config tasteBar when present
 const MAX_EVENTS = 400;
 const DEFAULT_HQ = { lat: 37.7786, lon: -122.3893, label: '101 Townsend St, SF' };
 
+// Colors are theme tokens (styles.css defines a dark and a light value for each).
 const AGENTS = {
-  Scout:     { mono: 'Sc', color: '#FF5B1F', role: 'Finds real businesses' },
-  Archivist: { mono: 'Ar', color: '#B79CFF', role: 'Reads the brand' },
-  Builder:   { mono: 'Bu', color: '#5AA9FF', role: 'Composes the site' },
-  Critic:    { mono: 'Cr', color: '#FFC247', role: `Taste gate ≥ ${PASS}` },
-  Director:  { mono: 'Di', color: '#FF6FAE', role: 'Hero visual + ad' },
-  Closer:    { mono: 'Cl', color: '#3DDC84', role: 'Pitch + checkout' },
-  CFO:       { mono: 'CF', color: '#7CE0D3', role: 'Spend vs revenue' },
-  System:    { mono: 'Sy', color: '#8A877F', role: 'Ops + integrations' },
+  Scout:     { mono: 'Sc', color: 'var(--scout)', role: 'Finds real businesses' },
+  Archivist: { mono: 'Ar', color: 'var(--archivist)', role: 'Reads the brand' },
+  Builder:   { mono: 'Bu', color: 'var(--builder)', role: 'Composes the site' },
+  Critic:    { mono: 'Cr', color: 'var(--critic)', role: `Taste gate ≥ ${PASS}` },
+  Director:  { mono: 'Di', color: 'var(--director)', role: 'Hero visual + ad' },
+  Closer:    { mono: 'Cl', color: 'var(--closer)', role: 'Pitch + checkout' },
+  CFO:       { mono: 'CF', color: 'var(--cfo)', role: 'Spend vs revenue' },
+  System:    { mono: 'Sy', color: 'var(--system)', role: 'Ops + integrations' },
 };
 const AGENT_NAMES = Object.keys(AGENTS);
 const SPLITS = ['Scout', 'Archivist', 'Builder', 'Critic', 'Director', 'Closer'];
@@ -55,7 +56,9 @@ const TILES = [
   { key: 'spendCents', label: 'Spend', c: 'var(--cfo)', money: true, spend: true },
 ];
 
-const REDUCED_MOTION = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const RM_QUERY = matchMedia('(prefers-reduced-motion: reduce)');
+let REDUCED_MOTION = RM_QUERY.matches;
+try { RM_QUERY.addEventListener('change', (e) => { REDUCED_MOTION = e.matches; }); } catch { /* old Safari */ }
 const COARSE = matchMedia('(pointer: coarse)').matches;
 const QS = new URLSearchParams(location.search);
 
@@ -89,6 +92,56 @@ let MOCK = null; // design-review backend, only when ?mock=1
 try { const r = Number(localStorage.getItem('co.radius')); if ([250, 450, 700, 1000].includes(r)) S.radius = r; } catch { /* storage unavailable */ }
 try { if (localStorage.getItem('co.sound') === 'off') S.sound = false; } catch { /* storage unavailable */ }
 try { const s = localStorage.getItem('co.sort'); if (['newest', 'pipeline', 'score', 'name'].includes(s)) S.sort = s; } catch { /* storage unavailable */ }
+
+// ─────────────────────────────────────────────────────────── theme
+// index.html sets data-theme/data-theme-pref before first paint; this keeps them in sync afterwards.
+// The header button and the T key flip light ↔ dark, so every press visibly changes the page.
+// The ⋯ menu item cycles System → (opposite of OS) → (same as OS), which keeps "follow the OS" reachable
+// and still makes its first press flip the page. ?theme=light|dark|system forces it for one page load.
+const THEME_ORDER = ['system', 'light', 'dark'];
+const THEME_LABEL = { system: 'System', light: 'Light', dark: 'Dark' };
+const THEME_MQ = matchMedia('(prefers-color-scheme: light)');
+const THEME = { pref: THEME_ORDER.includes(document.documentElement.dataset.themePref) ? document.documentElement.dataset.themePref : 'system', animT: 0 };
+const systemTheme = () => (THEME_MQ.matches ? 'light' : 'dark');
+const resolvedTheme = () => (THEME.pref === 'system' ? systemTheme() : THEME.pref);
+const themeMenuOrder = () => { const sys = systemTheme(); return ['system', sys === 'light' ? 'dark' : 'light', sys]; };
+const nextMenuTheme = () => { const o = themeMenuOrder(); return o[(o.indexOf(THEME.pref) + 1) % o.length]; };
+function applyTheme({ animate = false } = {}) {
+  const root = document.documentElement;
+  const t = resolvedTheme();
+  if (animate && !REDUCED_MOTION) {
+    root.classList.add('theme-anim');
+    clearTimeout(THEME.animT);
+    THEME.animT = setTimeout(() => root.classList.remove('theme-anim'), 340);
+  }
+  root.dataset.theme = t;
+  root.dataset.themePref = THEME.pref;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', cssVar('--bg', t === 'light' ? '#F6F3EC' : '#0A0A0B'));
+  const cs = document.querySelector('meta[name="color-scheme"]');
+  if (cs) cs.setAttribute('content', t);
+  const flip = t === 'light' ? 'dark' : 'light';
+  const now = THEME.pref === 'system' ? `System (${t})` : THEME_LABEL[THEME.pref];
+  const b = document.getElementById('btn-theme');
+  if (b) {
+    b.setAttribute('aria-label', `Theme: ${now}. Switch to ${THEME_LABEL[flip]}`);
+    b.dataset.tip = `Switch to ${THEME_LABEL[flip].toLowerCase()} · T`;
+    if (typeof TIP !== 'undefined' && TIP.target === b && TIP.el) TIP.el.textContent = b.dataset.tip;
+  }
+  const st = document.getElementById('theme-state');
+  if (st) st.textContent = now;
+  if (typeof M !== 'undefined' && M.tiles) M.tiles.setUrl(tileUrl());
+}
+function setThemePref(pref) {
+  THEME.pref = pref;
+  try { if (THEME.pref === 'system') localStorage.removeItem('co.theme'); else localStorage.setItem('co.theme', THEME.pref); } catch { /* storage unavailable */ }
+  applyTheme({ animate: true });
+}
+/** Header button + T: always flips what is on screen. */
+function toggleTheme() { setThemePref(resolvedTheme() === 'light' ? 'dark' : 'light'); }
+/** ⋯ menu: System → opposite of OS → same as OS (first press always flips the page). */
+function cycleTheme() { setThemePref(nextMenuTheme()); }
+try { THEME_MQ.addEventListener('change', () => { if (THEME.pref === 'system') applyTheme({ animate: true }); }); } catch { /* old Safari */ }
 
 // ─────────────────────────────────────────────────────────── DOM utils
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -149,6 +202,7 @@ const ICONS = {
   bolt: 'M11 3.5 5 11h4.5L9 16.5 15 9h-4.5z',
   eye: 'M2.5 10s2.8-5 7.5-5 7.5 5 7.5 5-2.8 5-7.5 5-7.5-5-7.5-5zM10 12.3a2.3 2.3 0 1 0 0-4.6 2.3 2.3 0 0 0 0 4.6z',
   qr: 'M3.5 3.5h5v5h-5zM11.5 3.5h5v5h-5zM3.5 11.5h5v5h-5zM11.5 11.5h2v2h-2zM14.5 14.5h2v2h-2zM11.5 15.5v1M16.5 11.5v1',
+  panel: 'M3.5 4.5h13v11h-13zM12 4.5v11M14 8h.5M14 10.5h.5',
 };
 function icon(name, { fill = false } = {}) {
   return sv('svg', { viewBox: '0 0 20 20', class: 'ico', 'aria-hidden': 'true' },
@@ -262,6 +316,13 @@ function normalizeHttpUrl(raw) {
 const hostOf = (u) => { try { return new URL(u).host.replace(/^www\./, ''); } catch { return null; } };
 const enc = encodeURIComponent;
 const str = (v) => (typeof v === 'string' ? v : v == null ? '' : String(v));
+/** OSM categories arrive as raw tags ("musical_instrument"); show them as words. */
+const catLabel = (c, fallback = 'Local business') => {
+  const t = str(c).replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : fallback;
+};
+/** Read a theme token at call time (canvas + Leaflet need real colors, not var()). */
+const cssVar = (name, fallback = '') => { try { return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback; } catch { return fallback; } };
 const arr = (v) => (Array.isArray(v) ? v : []);
 
 function groupOf(status) {
@@ -272,6 +333,8 @@ function groupOf(status) {
 // The score of the version that actually shipped (HQ ships the best draft, not always the last).
 const lastScore = (b) => { const s = arr(b.scores); if (!s.length) return null; const v = b && b.site && b.site.version; return (v && s.find((x) => x.version === v)) || s[s.length - 1]; };
 const scoreColor = (s) => (s >= PASS ? 'var(--money)' : s >= 70 ? 'var(--warn)' : 'var(--error)');
+/** Text-safe variant of scoreColor (≥4.5:1 in both themes). scoreColor is for bars/rings only. */
+const scoreInk = (s) => (s >= PASS ? 'var(--money-ink)' : s >= 70 ? 'var(--warn-ink)' : 'var(--error-ink)');
 const num = (v) => (v == null || v === '' ? NaN : Number(v));
 const hq = () => {
   const c = (S.config && S.config.hq) || {};
@@ -421,6 +484,7 @@ async function loadConfig() {
   const bar = S.config && Number(S.config.tasteBar);
   if (Number.isFinite(bar) && bar > 0 && bar <= 100) { PASS = bar; AGENTS.Critic.role = `Taste gate ≥ ${PASS}`; renderCrewRoles(); }
   renderPills();
+  renderIntro();
   $('#hq-label').textContent = hqShort();
   if (M.map) placeHQ();
   if (S.loaded) { renderGridFull(); updateRibbonSubs(); }
@@ -524,6 +588,7 @@ function addEvent(e) {
     for (const d of drop) S.eventIds.delete(d.id);
   }
   S.agentSeen[e.agent] = performance.now();
+  if (e.kind === 'success' || e.kind === 'money' || e.kind === 'error') announce(`${e.agent}: ${str(e.text)}`);
   appendFeed(e);
   updateCrewTile(e.agent);
   renderFeedFilters();
@@ -558,7 +623,7 @@ const PILL_DEFS = [
   {
     key: 'workersAI', label: 'Workers AI',
     // boolean, or { ok, quotaExhausted, reason }
-    state: (i) => { const w = i.workersAI; if (w && typeof w === 'object') return w.quotaExhausted ? 'partial' : !!w.ok; return !!w; },
+    state: (i) => { const w = i.workersAI; if (i.workersAIQuotaExhausted) return 'partial'; if (w && typeof w === 'object') return w.quotaExhausted ? 'partial' : !!w.ok; return !!w; },
     on: 'Workers AI renders FLUX hero images and backs up the LLM.',
     partial: 'Workers AI daily quota is exhausted — builds fall back where they can.',
     off: 'Workers AI binding not detected.',
@@ -581,6 +646,13 @@ function renderPills() {
   wrap.textContent = '';
   const cfg = S.config;
   const integ = (cfg && cfg.integrations) || null;
+  if (!integ) {
+    wrap.append(h('span', { class: 'pill', 'data-on': 'unknown', tabindex: '0', 'data-tip': 'Waiting for /api/config…', 'data-tip-pos': 'bottom', 'aria-label': 'Integrations: checking' }, h('i'), 'Checking integrations…'));
+    return;
+  }
+  // Only live integrations get a pill; the rest fold into one honest "+N available" pill.
+  wrap.append(h('span', { class: 'pills__k', 'aria-hidden': 'true', text: 'Powered by' }));
+  const off = [];
   for (const d of PILL_DEFS) {
     let state = 'unknown', tip = 'Waiting for /api/config…';
     if (integ) {
@@ -592,8 +664,12 @@ function renderPills() {
       if (d.key === 'stripe' && cfg.stripeMode) tip += ` Mode: ${str(cfg.stripeMode)}.`;
       if ((d.key === 'claude' || d.key === 'workersAI') && cfg.llm) tip += ` Brain right now: ${str(cfg.llm)}.`;
     }
+    if (state === 'false') { off.push(`${d.label} — ${tip.replace(/^Off\.?\s*(—\s*)?/, '')}`); continue; }
     const pill = h('span', { class: 'pill', 'data-on': state, tabindex: '0', 'data-tip': tip, 'data-tip-pos': 'bottom', 'aria-label': `${d.label}: ${state === 'true' ? 'on' : state === 'partial' ? 'partial' : state === 'false' ? 'off' : 'unknown'}` }, h('i'), d.label);
     wrap.append(pill);
+  }
+  if (off.length) {
+    wrap.append(h('span', { class: 'pill pill--more', tabindex: '0', 'data-tip': `Available, not switched on: ${off.join(' · ')}`, 'data-tip-pos': 'bottom', 'aria-label': `${off.length} more integrations available but off: ${off.map((o) => o.split(' — ')[0]).join(', ')}` }, `+${off.length}`));
   }
 }
 function startClock() {
@@ -662,7 +738,8 @@ function updateRibbon() {
       r.el.classList.remove('bump'); void r.el.offsetWidth; r.el.classList.add('bump');
       clearTimeout(r.bumpT); r.bumpT = setTimeout(() => r.el.classList.remove('bump'), 1200);
     }
-    tween(r.val, v, fmt, t.key === 'revenueCents' ? 1600 : 900);
+    r.el.classList.toggle('is-zero', v === 0 && !t.spend);
+    tween(r.val, v, fmt, t.key === 'revenueCents' ? 2200 : 900);
     if (S.loaded) r.primed = true;
   }
   updateRibbonSubs();
@@ -678,11 +755,20 @@ function updateRibbonSubs() {
   if (st.avgBuildMs != null) setSub('built', 'avg ', h('b', { text: fmtDur(st.avgBuildMs) }), ' · best ', h('b', { text: fmtDur(st.bestBuildMs) }));
   else setSub('built', 'no builds yet');
   setSub('tastePassed', st.built ? h('b', { text: pct(st.tastePassed, st.built) }) : '', st.built ? ` cleared ${PASS}` : `gate at ${PASS} / 100`);
-  setSub('contacted', h('b', { text: pct(st.contacted, st.built) }), ' of built');
-  setSub('replied', h('b', { text: pct(st.replied, st.contacted) }), ' reply rate');
-  setSub('paid', h('b', { text: pct(st.paid, st.contacted) }), ' close rate');
+  const readyN = list.filter((b) => b.status === 'ready').length;
+  const checkouts = list.filter((b) => b.status !== 'paid' && BUILT.has(b.status) && safeHref(b.paymentUrl)).length;
+  if (st.contacted) setSub('contacted', h('b', { text: pct(st.contacted, st.built) }), ' of built');
+  else setSub('contacted', readyN ? h('b', { text: String(readyN) }) : '', readyN ? ' ready to pitch' : 'nobody pitched yet');
+  if (st.contacted) setSub('replied', h('b', { text: pct(st.replied, st.contacted) }), ' reply rate');
+  else setSub('replied', 'after the first pitch');
+  if (st.contacted) setSub('paid', h('b', { text: pct(st.paid, st.contacted) }), ' close rate');
+  else setSub('paid', 'after the first reply');
   const link = S.config && str(S.config.paymentLink);
-  setSub('revenueCents', h('b', { text: String(st.paid || 0) }), ` paid via Stripe${/\/test_/.test(link) ? ' · test' : ''}`);
+  const test = /\/test_/.test(link) ? ' · test mode' : '';
+  if (st.revenueCents > 0 || !checkouts) setSub('revenueCents', h('b', { text: String(st.paid || 0) }), ` paid via Stripe${test}`);
+  else setSub('revenueCents', h('b', { text: String(checkouts) }), ` ${checkouts === 1 ? 'checkout' : 'checkouts'} live${test}`);
+  updateCrewOutcomes();
+  updateMtabs();
   if (st.spendCents > 0 && st.revenueCents > 0) setSub('spendCents', 'ROI ', h('b', { text: `${fmtInt(st.revenueCents / st.spendCents)}×` }), st.built ? ` · ${fmtSpend(st.spendCents / st.built)}/site` : '');
   else if (st.spendCents > 0 && st.built) setSub('spendCents', h('b', { text: fmtSpend(st.spendCents / st.built) }), ' per site built');
   else setSub('spendCents', 'model + image spend');
@@ -702,7 +788,7 @@ function renderFunnel() {
   const fw = $('#grid-filters');
   if (!FUN.built) {
     FUN.built = true;
-    FUN.idle = h('div', { class: 'funnel__seg', style: { flexGrow: 1, '--c': '#1E1E23' } });
+    FUN.idle = h('div', { class: 'funnel__seg', style: { flexGrow: 1, '--c': 'var(--track)' } });
     funnel.append(FUN.idle);
     for (const g of GROUPS) {
       const seg = h('div', { class: `funnel__seg funnel__seg--${g.key}`, style: { flexGrow: 0, '--c': g.color } });
@@ -712,7 +798,7 @@ function renderFunnel() {
     const mk = (key, label, color) => {
       const n = h('b', { text: '0' });
       const b = h('button', { class: 'fchip', type: 'button', 'aria-pressed': 'false', style: { '--c': color } }, key !== 'all' ? h('i') : null, label, n);
-      b.addEventListener('click', () => { S.gridFilter = S.gridFilter === key && key !== 'all' ? 'all' : key; renderFunnel(); layoutGrid(); });
+      b.addEventListener('click', () => { S.gridFilter = S.gridFilter === key && key !== 'all' ? 'all' : key; renderFunnel(); layoutGrid({ force: true }); });
       fw.append(b);
       FUN.chips[key] = { b, n };
     };
@@ -748,7 +834,8 @@ function visibleList() {
   }
   const by = {
     newest: (a, b) => (b.createdAt || 0) - (a.createdAt || 0) || a.name.localeCompare(b.name),
-    pipeline: (a, b) => PIPE_RANK[groupOf(a.status)] - PIPE_RANK[groupOf(b.status)] || (b.updatedAt || 0) - (a.updatedAt || 0),
+    // Tie-break on createdAt, not updatedAt: updatedAt changes on every agent event and made cards reshuffle constantly.
+    pipeline: (a, b) => PIPE_RANK[groupOf(a.status)] - PIPE_RANK[groupOf(b.status)] || (b.createdAt || 0) - (a.createdAt || 0) || a.name.localeCompare(b.name),
     score: (a, b) => ((lastScore(b) || { score: -1 }).score - (lastScore(a) || { score: -1 }).score) || a.name.localeCompare(b.name),
     name: (a, b) => a.name.localeCompare(b.name),
   }[S.sort] || ((a, b) => 0);
@@ -759,8 +846,14 @@ function renderGridFull() {
   for (const [id, c] of S.cards) if (!S.biz.has(id)) { c.el.remove(); S.cards.delete(id); }
   layoutGrid();
 }
-function layoutGrid() {
+/** Re-order the grid. Live updates (force=false) wait while the pointer or focus is on a card, so nothing jumps under the cursor. */
+function layoutGrid({ force = false } = {}) {
   const grid = $('#grid');
+  if (!force && !COARSE && S.loaded && grid.querySelector('.card') && (($('#grid-scroll').matches(':hover') && grid.matches(':hover')) || grid.contains(document.activeElement))) {
+    S.gridDirty = true;
+    return;
+  }
+  S.gridDirty = false;
   const list = visibleList();
   const want = list.map((b) => S.cards.get(b.id)).filter(Boolean).map((c) => c.el);
   const wantSet = new Set(want);
@@ -774,7 +867,7 @@ function layoutGrid() {
     for (const [el, r0] of before) {
       const r1 = el.getBoundingClientRect();
       const dx = r0.left - r1.left, dy = r0.top - r1.top;
-      if (Math.abs(dx) > 1 || Math.abs(dy) > 1) el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 420, easing: 'cubic-bezier(.2,.8,.2,1)' });
+      if (Math.abs(dx) > 1 || Math.abs(dy) > 1) el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 320, easing: 'cubic-bezier(.2,.8,.2,1)' });
     }
   }
   renderEmpty(list.length);
@@ -797,6 +890,10 @@ function renderEmpty(visibleCount) {
       h('div', { class: 'empty__art', 'aria-hidden': 'true' }, h('div', { class: 'r' }), h('div', { class: 'r r2' }), h('div', { class: 'r r3' }), h('div', { class: 'sweep' }), h('div', { class: 'core' })),
       h('h2', {}, 'The block is ', h('em', { text: 'quiet.' })),
       h('p', { text: `The Scout walks ${S.radius} m around ${hq().label} and finds real independent businesses. Then the crew reads each brand, builds a site worth paying for, and gates it on taste before anyone says hello.` }),
+      h('ol', { class: 'empty__steps' },
+        h('li', {}, h('b', { text: '1' }), 'Scout', h('span', { text: '~10s' })),
+        h('li', {}, h('b', { text: '2' }), `Build + taste gate ≥ ${PASS}`, h('span', { text: '~30s' })),
+        h('li', {}, h('b', { text: '3' }), 'Stripe checkout attached')),
       h('div', { class: 'empty__actions' },
         btn('Scout the block', { kind: 'signal', size: 'lg', ic: 'bolt', busyKey: 'scout', onClick: (e, el) => actScout(el) }),
         btn('Live challenge', { kind: 'ghost', size: 'lg', onClick: () => openChallenge() }),
@@ -806,7 +903,7 @@ function renderEmpty(visibleCount) {
     empty.append(h('div', { class: 'empty__inner' },
       h('h2', { text: 'Nothing matches.' }),
       h('p', { text: S.search ? `No business on the block matches “${S.search}”.` : 'No businesses in this stage yet.' }),
-      h('div', { class: 'empty__actions' }, btn('Clear filters', { kind: 'ghost', onClick: () => { S.gridFilter = 'all'; S.search = ''; $('#search').value = ''; renderFunnel(); layoutGrid(); } })),
+      h('div', { class: 'empty__actions' }, btn('Clear filters', { kind: 'ghost', onClick: () => { S.gridFilter = 'all'; S.search = ''; $('#search').value = ''; renderFunnel(); layoutGrid({ force: true }); } })),
     ));
   }
 }
@@ -842,9 +939,9 @@ function setRing(ring, score) {
 function placeholderBg(b) {
   const p = b.brand && b.brand.palette;
   const c1 = p && safeColor(p.primary), c2 = p && safeColor(p.secondary);
-  if (c1 && c2) return `radial-gradient(120% 90% at 20% 10%, ${c1}, transparent 70%), linear-gradient(135deg, ${c2}, #0A0A0B)`;
+  if (c1 && c2) return `radial-gradient(120% 90% at 20% 10%, ${c1}, transparent 70%), linear-gradient(135deg, ${c2}, var(--ph-end))`;
   const hue = hashHue(b.name);
-  return `radial-gradient(120% 90% at 18% 12%, hsl(${hue} 42% 30%), transparent 70%), linear-gradient(135deg, hsl(${(hue + 40) % 360} 30% 16%), #0B0B0D)`;
+  return `radial-gradient(120% 90% at 18% 12%, hsl(${hue} 42% 30%), transparent 70%), linear-gradient(135deg, hsl(${(hue + 40) % 360} 30% 16%), var(--ph-end))`;
 }
 
 function updateCardFor(b) {
@@ -854,7 +951,7 @@ function updateCardFor(b) {
 }
 function createCard(b) {
   const el = h('article', { class: 'card', 'data-id': b.id, tabindex: '-1' });
-  const ph = h('div', { class: 'ph' }, h('div', { class: 'ph__lines' }), h('div', { class: 'ph__glyph' }));
+  const ph = h('div', { class: 'ph' }, h('div', { class: 'ph__lines' }), h('div', { class: 'ph__swatches', 'aria-hidden': 'true' }), h('div', { class: 'ph__glyph', 'aria-hidden': 'true' }));
   const img = h('img', { alt: '', decoding: 'async', loading: 'lazy' });
   img.addEventListener('load', () => img.classList.add('is-loaded'));
   img.addEventListener('error', () => img.classList.remove('is-loaded'));
@@ -896,6 +993,11 @@ function updateCard(c, b) {
     c.sig.ph = phSig;
     c.ph.style.background = placeholderBg(b);
     $('.ph__glyph', c.ph).textContent = (b.name.match(/[A-Za-z0-9]/) || ['·'])[0].toUpperCase();
+    // the brand's extracted palette, shown while there is no hero image yet
+    const sw = $('.ph__swatches', c.ph);
+    sw.textContent = '';
+    const pal = (b.brand && b.brand.palette) || {};
+    for (const k of ['primary', 'secondary', 'accent', 'background', 'text']) { const col = safeColor(pal[k]); if (col) sw.append(h('i', { style: { background: col } })); }
   }
   const scan = $('.ph__scan', c.ph);
   if (g === 'flight' && !scan) c.ph.append(h('div', { class: 'ph__scan' }));
@@ -920,7 +1022,7 @@ function updateCard(c, b) {
 
   c.cat.textContent = '';
   const dist = fmtDist(distanceM(b));
-  append(c.cat, [str(b.category) || 'business', dist ? h('span', { style: { opacity: '.6' }, text: `· ${dist}` }) : null]);
+  append(c.cat, [catLabel(b.category), dist ? h('span', { text: `· ${dist}` }) : null]);
 
   c.badges.textContent = '';
   if (b.video && b.video.status === 'ready') c.badges.append(h('span', { class: 'badge', text: 'Ad' }));
@@ -972,17 +1074,19 @@ function renderStepper(wrap, b) {
   wrap.append(bar, labels);
 }
 function cardActions(b) {
-  const details = btn('Details', { kind: 'ghost', onClick: () => openDrawer(b.id) });
-  const open = btn('Open site', { kind: 'light', ic: 'ext', href: sitePath(b), target: '_blank' });
+  const detailsIcon = h('button', { class: 'btn btn--ghost btn--sm btn--icon', type: 'button', 'aria-label': `Details for ${b.name}`, 'data-tip': 'Details — brand kit, taste gate, pitch' }, icon('panel'));
+  detailsIcon.addEventListener('click', () => openDrawer(b.id));
+  const details = detailsIcon;
+  const open = btn('Open site', { kind: 'ghost', ic: 'ext', href: sitePath(b), target: '_blank' });
   const build = (label) => btn(label, { kind: 'signal', ic: 'play', busyKey: `build:${b.id}`, onClick: (e, el) => actBuild(b.id, el) });
   switch (groupOf(b.status)) {
     case 'scouted': return [build('Build site'), details];
     case 'error': return [build('Retry build'), b.site ? open : null, details];
-    case 'flight': return [btn('Watch live', { kind: 'ghost', onClick: () => openDrawer(b.id) })];
-    case 'ready': return [open, btn('Mark contacted', { ic: 'mail', busyKey: `status:${b.id}`, onClick: (e, el) => actStatus(b.id, 'contacted', el) }), details];
-    case 'contacted': return [open, btn('Mark replied', { ic: 'reply', busyKey: `status:${b.id}`, onClick: (e, el) => actStatus(b.id, 'replied', el) }), details];
-    case 'replied': return [open, b.paymentUrl && safeHref(b.paymentUrl) ? btn('Copy pay link', { ic: 'card', onClick: () => copyText(b.paymentUrl, 'Checkout link copied') }) : null, details];
-    case 'paid': return [open, details];
+    case 'flight': return [btn('Watch live', { kind: 'ghost', ic: 'eye', onClick: () => openDrawer(b.id) })];
+    case 'ready': return [open, btn('Mark contacted', { kind: 'light', ic: 'mail', busyKey: `status:${b.id}`, onClick: (e, el) => actStatus(b.id, 'contacted', el) }), details];
+    case 'contacted': return [open, btn('Mark replied', { kind: 'light', ic: 'reply', busyKey: `status:${b.id}`, onClick: (e, el) => actStatus(b.id, 'replied', el) }), details];
+    case 'replied': return [open, b.paymentUrl && safeHref(b.paymentUrl) ? btn('Copy pay link', { kind: 'light', ic: 'card', onClick: () => copyText(b.paymentUrl, 'Checkout link copied') }) : null, details];
+    case 'paid': return [btn('Open site', { kind: 'money', ic: 'ext', href: sitePath(b), target: '_blank' }), details];
     default: return [details];
   }
 }
@@ -992,7 +1096,7 @@ function focusBusiness(id, { open = false } = {}) {
   let c = S.cards.get(id);
   if (!c || !c.el.isConnected) {
     S.gridFilter = 'all'; S.search = ''; $('#search').value = '';
-    renderFunnel(); layoutGrid();
+    renderFunnel(); layoutGrid({ force: true });
     c = S.cards.get(id);
   }
   if (c) {
@@ -1005,7 +1109,13 @@ function focusBusiness(id, { open = false } = {}) {
 }
 
 // ─────────────────────────────────────────────────────────── map
-const M = { map: null, pins: new Map(), lines: new Map(), hqMarker: null, circle: null, radar: null };
+const M = { map: null, tiles: null, pins: new Map(), lines: new Map(), hqMarker: null, circle: null, radar: null };
+// Esri's keyless canvas basemaps (CARTO's keyless tiles now demand an API key). Same attribution for both.
+const TILE_URLS = {
+  dark: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+  light: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+};
+const tileUrl = () => TILE_URLS[document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'];
 function initMap() {
   const box = $('#map');
   if (!window.L) {
@@ -1014,9 +1124,8 @@ function initMap() {
   }
   const { lat, lon } = hq();
   M.map = L.map(box, { zoomControl: false, attributionControl: true, scrollWheelZoom: true, preferCanvas: false }).setView([lat, lon], 16);
-  // CARTO's keyless basemaps now return an "API key required" tile, so we use Esri's keyless Dark Gray Canvas
-  // (native to z16, upscaled beyond) and darken it in CSS to sit on the #0A0A0B stage.
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+  // Native to z16, upscaled beyond; tinted in CSS (--tile-filter) to sit on either theme. applyTheme() swaps the URL.
+  M.tiles = L.tileLayer(tileUrl(), {
     maxNativeZoom: 16, maxZoom: 19,
     attribution: 'Tiles &copy; <a href="https://www.esri.com/" target="_blank" rel="noopener">Esri</a> &mdash; Esri, HERE, Garmin, &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors',
   }).addTo(M.map);
@@ -1028,6 +1137,7 @@ function initMap() {
   legend.append(h('span', { style: { '--c': 'var(--signal)' } }, h('i', { style: { borderRadius: '2px', transform: 'rotate(45deg)' } }), 'HQ'));
   for (const g of GROUPS) legend.append(h('span', { style: { '--c': g.color } }, h('i'), g.label));
 }
+// Leaflet writes stroke/fill as SVG attributes; the className lets CSS paint them from theme tokens.
 function placeHQ() {
   if (!M.map) return;
   const { lat, lon, label } = hq();
@@ -1036,10 +1146,11 @@ function placeHQ() {
   if (M.hqMarker) { M.hqMarker.setLatLng([lat, lon]); M.hqMarker.setIcon(icon); }
   else M.hqMarker = L.marker([lat, lon], { icon, keyboard: false, zIndexOffset: 1000, interactive: false }).addTo(M.map);
   if (M.circle) M.circle.setLatLng([lat, lon]).setRadius(S.radius);
-  else M.circle = L.circle([lat, lon], { radius: S.radius, color: '#FF5B1F', weight: 1, opacity: 0.55, dashArray: '3 6', fillColor: '#FF5B1F', fillOpacity: 0.035, interactive: false }).addTo(M.map);
+  else M.circle = L.circle([lat, lon], { radius: S.radius, className: 'hq-radius', weight: 1, opacity: 0.6, dashArray: '3 6', fillOpacity: 0.035, interactive: false }).addTo(M.map);
 }
 function pinIcon(g) {
-  return L.divIcon({ className: 'pin-icon', html: `<div class="pin pin--${g}"></div>`, iconSize: [16, 16], iconAnchor: [8, 8] });
+  // 26px hit target around a 14px dot
+  return L.divIcon({ className: 'pin-icon', html: `<div class="pin pin--${g}"></div>`, iconSize: [26, 26], iconAnchor: [13, 13] });
 }
 function syncPins() {
   if (!M.map) return;
@@ -1056,7 +1167,8 @@ function syncPin(b) {
     const tipName = h('span');
     const tipSub = h('small');
     const tip = h('div', {}, tipName, tipSub);
-    const marker = L.marker([b.lat, b.lon], { icon: pinIcon(g), keyboard: true, title: b.name, riseOnHover: true, alt: b.name }).addTo(M.map);
+    // keyboard:false — 24 map tab stops sat between the header and the grid; the grid is the keyboard path.
+    const marker = L.marker([b.lat, b.lon], { icon: pinIcon(g), keyboard: false, title: b.name, riseOnHover: true, alt: b.name }).addTo(M.map);
     marker.bindTooltip(tip, { direction: 'top', offset: [0, -10], className: 'pin-tip', opacity: 1 });
     marker.on('click', () => focusBusiness(b.id));
     marker.on('mouseover', () => { const c = S.cards.get(b.id); if (c) c.el.classList.add('is-hot'); });
@@ -1086,7 +1198,7 @@ function syncLine(b, g) {
   if (g !== 'flight' || !hasGeo(b)) { if (line) { line.remove(); M.lines.delete(b.id); } return; }
   const { lat, lon } = hq();
   if (line) { line.setLatLngs([[lat, lon], [b.lat, b.lon]]); return; }
-  M.lines.set(b.id, L.polyline([[lat, lon], [b.lat, b.lon]], { color: '#FF5B1F', weight: 1.5, opacity: 0.85, dashArray: '2 7', className: 'flight-line', interactive: false }).addTo(M.map));
+  M.lines.set(b.id, L.polyline([[lat, lon], [b.lat, b.lon]], { weight: 1.5, opacity: 0.85, dashArray: '2 7', className: 'flight-line', interactive: false }).addTo(M.map));
 }
 function hotPin(id, on) {
   const p = M.pins.get(id);
@@ -1107,13 +1219,13 @@ function fitMap() {
   const { lat, lon } = hq();
   const pts = [[lat, lon], ...[...M.pins.values()].map((p) => p.marker.getLatLng())];
   if (pts.length < 2) { M.map.setView([lat, lon], 16); return; }
-  M.map.fitBounds(L.latLngBounds(pts), { padding: [34, 34], maxZoom: 17, animate: !REDUCED_MOTION });
+  M.map.fitBounds(L.latLngBounds(pts), { padding: [28, 28], maxZoom: 17, animate: !REDUCED_MOTION });
 }
 function startRadar() {
   if (!M.map || REDUCED_MOTION) return;
   stopRadar();
   const { lat, lon } = hq();
-  const c = L.circle([lat, lon], { radius: 1, color: '#FF5B1F', weight: 1.5, opacity: 0.8, fillColor: '#FF5B1F', fillOpacity: 0.1, interactive: false }).addTo(M.map);
+  const c = L.circle([lat, lon], { radius: 1, className: 'radar-ring', weight: 1.5, opacity: 0.8, fillOpacity: 0.1, interactive: false }).addTo(M.map);
   const t0 = performance.now();
   const step = (t) => {
     const p = ((t - t0) % 1700) / 1700;
@@ -1136,17 +1248,35 @@ function renderCrew() {
   const wrap = $('#crew');
   if (!wrap.children.length) {
     for (const a of AGENT_NAMES) {
-      const last = h('div', { class: 'agent__last is-idle', text: 'Standing by.' });
-      const count = h('small', { text: '0' });
-      const el = h('button', { class: 'agent', type: 'button', style: { '--c': AGENTS[a].color }, 'aria-pressed': 'false', title: `Show only ${a} in the channel` },
-        monoEl(a), h('div', { class: 'agent__name' }, a, count), h('div', { class: 'agent__role', text: AGENTS[a].role }), last);
+      const last = h('div', { class: 'agent__last', text: 'Standing by.' });
+      const count = h('span', { class: 'agent__count' });
+      const el = h('button', { class: 'agent is-idle', type: 'button', style: { '--c': AGENTS[a].color }, 'aria-pressed': 'false', 'data-tip': `${a} — ${AGENTS[a].role}. Click to show only ${a} in the channel.` },
+        monoEl(a, 'sm'), h('div', { class: 'agent__id' }, h('span', { class: 'agent__name', text: a }), h('span', { class: 'agent__role', text: AGENTS[a].role })), last, count);
       el.addEventListener('click', () => { S.feedAgent = S.feedAgent === a ? null : a; renderFeedFilters(); renderFeed(); syncCrewFilter(); });
       wrap.append(el);
       CREW[a] = { el, last, count };
     }
   }
   for (const a of AGENT_NAMES) updateCrewTile(a);
+  updateCrewOutcomes();
   syncCrewFilter();
+}
+/** Each agent's running total, derived from the businesses themselves (the event window only holds the last 400). */
+function updateCrewOutcomes() {
+  if (!CREW.Scout) return;
+  const st = statsNow();
+  const list = [...S.biz.values()];
+  const n = {
+    Scout: `${fmtInt(st.scouted)} found`,
+    Archivist: `${list.filter((b) => b.brand).length} brands`,
+    Builder: `${fmtInt(st.built)} built`,
+    Critic: `${fmtInt(st.tastePassed)} passed`,
+    Director: `${list.filter((b) => safeHref(b.heroImage)).length} heroes`,
+    Closer: `${list.filter((b) => safeHref(b.paymentUrl)).length} checkouts`,
+    CFO: fmtSpend(Number(st.spendCents) || 0),
+    System: `${fmtInt(S.events.filter((e) => e.agent === 'System').length)} notes`,
+  };
+  for (const a of AGENT_NAMES) if (CREW[a]) CREW[a].count.textContent = n[a];
 }
 function renderCrewRoles() {
   for (const a of AGENT_NAMES) { const t = CREW[a]; if (t) { const r = $('.agent__role', t.el); if (r) r.textContent = AGENTS[a].role; } }
@@ -1154,11 +1284,11 @@ function renderCrewRoles() {
 function updateCrewTile(a) {
   const t = CREW[a];
   if (!t) return;
-  let n = 0, last = null;
-  for (const e of S.events) if (e.agent === a) { n++; last = e; }
-  t.count.textContent = String(n);
-  if (last) { t.last.textContent = str(last.text); t.last.classList.remove('is-idle'); }
-  else { t.last.textContent = 'Standing by.'; t.last.classList.add('is-idle'); }
+  let last = null;
+  for (let i = S.events.length - 1; i >= 0; i--) if (S.events[i].agent === a) { last = S.events[i]; break; }
+  t.last.textContent = last ? str(last.text) : 'Standing by.';
+  t.last.title = last ? str(last.text) : '';
+  if (a === 'System') updateCrewOutcomes();
   syncWorking();
 }
 function syncWorking() {
@@ -1167,7 +1297,7 @@ function syncWorking() {
   for (const a of AGENT_NAMES) {
     const on = S.agentSeen[a] && now - S.agentSeen[a] < 7000;
     if (on) working++;
-    CREW[a] && CREW[a].el.classList.toggle('is-working', !!on);
+    if (CREW[a]) { CREW[a].el.classList.toggle('is-working', !!on); CREW[a].el.classList.toggle('is-idle', !on); }
   }
   $('#crew-sub').textContent = working ? `${working} working` : 'idle';
 }
@@ -1206,23 +1336,38 @@ function renderFeedFilters() {
   FF.biz.hidden = !S.feedBiz;
   FF.bizLabel.textContent = `Only ${biz ? biz.name : 'business'}`;
   $('#feed-count').textContent = `· ${fmtInt(S.events.length)} messages`;
+  updateMtabs();
 }
+const MILESTONE = /\b(scored \d+|cleared|shipped|is live|live at|paid|claimed)\b/i;
+const STATUS_TOKEN = { scouted: 'var(--st-scouted)', flight: 'var(--st-flight)', ready: 'var(--st-ready)', contacted: 'var(--st-contacted)', replied: 'var(--st-replied)', paid: 'var(--st-paid)', error: 'var(--st-error)' };
 function msgNode(e, prev) {
   const a = AGENTS[e.agent] || AGENTS.System;
   const kind = ['info', 'success', 'warn', 'error', 'money'].includes(e.kind) ? e.kind : 'info';
-  const cont = prev && prev.agent === e.agent && kind !== 'money' && prev.kind !== 'money' && Math.abs((e.ts || 0) - (prev.ts || 0)) < 90000;
-  const text = h('div', { class: 'msg__text', text: str(e.text) });
+  const cont = prev && prev.agent === e.agent && (prev.bizId || null) === (e.bizId || null) && kind !== 'money' && prev.kind !== 'money' && Math.abs((e.ts || 0) - (prev.ts || 0)) < 90000;
+  const raw = str(e.text);
+  const text = h('div', { class: 'msg__text', text: raw });
   if (e.data && e.data.provider === 'brainbase') text.append(h('span', { class: 'msg__tag msg__tag--brainbase', title: 'Second opinion from a Brainbase managed agent', text: 'Brainbase' }));
   const biz = e.bizId && S.biz.get(e.bizId);
+  let tag = null;
   if (biz) {
-    const tag = h('button', { class: 'msg__biz', type: 'button', title: `Open ${biz.name}` }, biz.name);
+    tag = h('button', { class: 'msg__biz', type: 'button', title: `Open ${biz.name}`, style: { '--bc': STATUS_TOKEN[groupOf(biz.status)] } }, h('i'), h('span', { text: biz.name }));
     tag.addEventListener('click', () => focusBusiness(biz.id, { open: true }));
-    text.append(tag);
   }
-  const li = h('li', { class: `msg msg--${kind} ${cont ? 'msg--cont' : ''}`, style: { '--c': a.color } },
-    monoEl(e.agent),
-    cont ? null : h('div', { class: 'msg__head' }, h('span', { class: 'msg__agent', text: e.agent }), h('time', { class: 'msg__time', datetime: new Date(e.ts || Date.now()).toISOString(), text: fmtTime(e.ts) })),
-    text);
+  // long critiques collapse to four lines; click (or the toggle) to read the rest
+  let more = null;
+  if (raw.length > 260) {
+    text.classList.add('is-clamped');
+    more = h('button', { class: 'msg__more', type: 'button', 'aria-expanded': 'false', text: 'Show more' });
+    const toggle = () => { const open = text.classList.toggle('is-clamped'); more.textContent = open ? 'Show more' : 'Show less'; more.setAttribute('aria-expanded', String(!open)); };
+    more.addEventListener('click', toggle);
+    text.addEventListener('click', (ev) => { if (ev.target === text && text.classList.contains('is-clamped')) toggle(); });
+  }
+  const milestone = kind === 'money' || (kind === 'success' && MILESTONE.test(raw));
+  const head = cont ? null : h('div', { class: 'msg__head' },
+    h('span', { class: 'msg__agent', text: e.agent }), tag,
+    h('time', { class: 'msg__time', datetime: new Date(e.ts || Date.now()).toISOString(), text: fmtTime(e.ts) }));
+  const li = h('li', { class: `msg msg--${kind} ${cont ? 'msg--cont' : ''} ${milestone ? 'msg--milestone' : ''}`, style: { '--c': a.color } },
+    monoEl(e.agent), head, text, more);
   li._ev = e;
   return li;
 }
@@ -1413,7 +1558,8 @@ function openDrawer(id) {
   D.sig = null;
   renderDrawer();
   try { history.replaceState(null, '', `${location.pathname}${location.search}#/b/${enc(id)}`); } catch { /* sandboxed */ }
-  if (!wasOpen) setTimeout(() => { const x = $('#drawer .dh__close'); if (x) x.focus({ preventScroll: true }); }, 30);
+  syncInert();
+  if (!wasOpen) setTimeout(() => { if (S.drawerId) d.focus({ preventScroll: true }); }, 30);
 }
 function closeDrawer() {
   if (!S.drawerId) return;
@@ -1425,6 +1571,7 @@ function closeDrawer() {
   if (REDUCED_MOTION) done();
   else { d.classList.add('is-closing'); D.closeT = setTimeout(done, 230); }
   $('#drawer-scrim').hidden = true;
+  syncInert();
   try { history.replaceState(null, '', `${location.pathname}${location.search}`); } catch { /* sandboxed */ }
   if (S.lastFocus && S.lastFocus.isConnected) S.lastFocus.focus({ preventScroll: true });
 }
@@ -1498,7 +1645,7 @@ function drawerHeader(b) {
   const g = groupOf(b.status);
   const close = h('button', { class: 'icon-btn dh__close', type: 'button', 'aria-label': 'Close details' }, icon('close'));
   close.addEventListener('click', closeDrawer);
-  const metaBits = [str(b.category) || 'business', str(b.address), fmtDist(distanceM(b))].filter(Boolean).join(' · ');
+  const metaBits = [catLabel(b.category), str(b.address), fmtDist(distanceM(b))].filter(Boolean).join(' · ');
   const webHref = safeHref(b.website);
   const meta = h('div', { class: 'dh__meta' }, metaBits, webHref ? h('span', {}, ' · ', h('a', { href: webHref, target: '_blank', rel: 'noopener noreferrer', text: hostOf(webHref) || 'website' })) : null);
   const actions = h('div', { class: 'dh__actions' });
@@ -1553,7 +1700,7 @@ function renderPreview(b) {
 }
 function previewPoster(b, onLive) {
   const p = (b.brand && b.brand.palette) || {};
-  const bg = safeColor(p.background) || '#151518', fg = safeColor(p.text) || '#F4F1EA', accent = safeColor(p.accent) || safeColor(p.primary) || '#FF5B1F';
+  const bg = safeColor(p.background) || 'var(--panel-3)', fg = safeColor(p.text) || 'var(--text)', accent = safeColor(p.accent) || safeColor(p.primary) || 'var(--signal)';
   const hf = safeFont(b.brand && b.brand.fonts && b.brand.fonts.heading);
   if (hf) ensureFont(hf);
   const hero = safeHref(b.heroImage);
@@ -1561,7 +1708,7 @@ function previewPoster(b, onLive) {
     hero ? h('div', { class: 'poster__img', style: { backgroundImage: `url("${hero.replace(/["\\\n\r]/g, '')}")` } }) : h('div', { class: 'poster__img', style: { background: placeholderBg(b) } }),
     h('div', { class: 'poster__shade' }),
     h('div', { class: 'poster__copy' },
-      h('div', { class: 'poster__kick', style: { color: accent }, text: str(b.category) || 'local business' }),
+      h('div', { class: 'poster__kick', style: { color: accent }, text: catLabel(b.category) }),
       h('div', { class: 'poster__h', style: { fontFamily: hf ? `"${hf}", var(--serif)` : null }, text: (b.site && str(b.site.headline)) || b.name }),
       b.site && b.site.subheadline ? h('div', { class: 'poster__s', text: str(b.site.subheadline) }) : null),
     h('div', { class: 'poster__actions' },
@@ -1588,7 +1735,7 @@ function barsChart(scores, { small = false } = {}) {
   wrap.append(axis, h('div', { class: 'bars__gate', style: { top: `${100 - PASS}%` } }, h('span', { text: `GATE ${PASS}` })));
   for (const s of scores) {
     const sc = Math.max(0, Math.min(100, Number(s.score) || 0));
-    wrap.append(h('div', { class: 'bar' }, h('div', { class: 'bar__fill', style: { '--c': scoreColor(sc) }, 'data-h': `${sc}%`, 'data-low': sc < 22 ? '1' : null }, h('span', { class: 'bar__val', text: String(Math.round(sc)) })), h('span', { class: 'bar__lbl', text: `v${s.version}` })));
+    wrap.append(h('div', { class: 'bar' }, h('div', { class: sc < 70 ? 'bar__fill bar__fill--fail' : 'bar__fill', style: { '--c': scoreColor(sc) }, 'data-h': `${sc}%`, 'data-low': sc < 22 ? '1' : null }, h('span', { class: 'bar__val', text: String(Math.round(sc)) })), h('span', { class: 'bar__lbl', text: `v${s.version}` })));
   }
   return wrap;
 }
@@ -1614,7 +1761,7 @@ function gateSection(b) {
   scores.forEach((s, i) => {
     const prev = scores[i - 1];
     const d = prev ? Math.round(Number(s.score) - Number(prev.score)) : null;
-    versions.append(h('div', { class: 'ver', style: { '--c': scoreColor(Number(s.score)) } },
+    versions.append(h('div', { class: 'ver', style: { '--c': scoreInk(Number(s.score)) } },
       h('div', {}, h('div', { class: 'ver__score', text: String(Math.round(Number(s.score))) }), h('div', { class: 'ver__v', text: `V${s.version}` })),
       h('div', { style: { minWidth: '0' } },
         h('div', { class: 'ver__meta' }, h('b', { text: str(s.provider) || 'critic' }), s.at ? ` · ${fmtTime(s.at)}` : '', ' ', d != null ? h('span', { class: `delta ${d >= 0 ? 'delta--up' : 'delta--down'}`, text: `${d >= 0 ? '+' : ''}${d}` }) : null, Number(s.score) >= PASS ? h('span', { class: 'delta delta--up', style: { marginLeft: '4px' }, text: 'PASS' }) : null),
@@ -1630,7 +1777,7 @@ function brandSection(b) {
   const palette = h('div', { class: 'palette' });
   for (const k of ['primary', 'secondary', 'accent', 'background', 'text']) {
     const c = safeColor(pal[k]);
-    const sw = h('button', { class: 'sw', type: 'button', title: c ? `Copy ${c}` : 'No color', disabled: !c }, h('div', { class: 'sw__chip', style: { background: c || 'repeating-linear-gradient(45deg,#222 0 4px,#181818 4px 8px)' } }), h('span', { class: 'sw__name', text: k }), h('span', { class: 'sw__hex', text: c ? c.toUpperCase() : '—' }));
+    const sw = h('button', { class: 'sw', type: 'button', title: c ? `Copy ${c}` : 'No color', disabled: !c }, h('div', { class: 'sw__chip', style: { background: c || 'repeating-linear-gradient(45deg, var(--track) 0 4px, var(--panel-2) 4px 8px)' } }), h('span', { class: 'sw__name', text: k }), h('span', { class: 'sw__hex', text: c ? c.toUpperCase() : '—' }));
     if (c) sw.addEventListener('click', () => copyText(c.toUpperCase(), `Copied ${c.toUpperCase()}`));
     palette.append(sw);
   }
@@ -1785,6 +1932,7 @@ function openChallenge() {
   const wasHidden = el.hidden;
   if (wasHidden) S.lastFocusCh = document.activeElement;
   el.hidden = false;
+  syncInert();
   if (CH.phase === 'form' || CH.phase === 'idle') chRenderForm();
   else if (wasHidden) chRenderRun();
   if (CH.phase === 'running' && !CH.raf) CH.raf = requestAnimationFrame(chTick);
@@ -1793,6 +1941,7 @@ function closeChallenge() {
   const el = $('#challenge');
   if (el.hidden) return;
   el.hidden = true;
+  syncInert();
   cancelAnimationFrame(CH.raf || 0); CH.raf = 0;
   if (CH.phase === 'running') toast({ kind: 'info', title: 'Challenge keeps running', text: COARSE ? 'Tap Live to jump back to the timer.' : 'Press L (or Live challenge) to jump back to the timer.', timeout: 2600 });
   if (S.lastFocusCh && S.lastFocusCh.isConnected) S.lastFocusCh.focus({ preventScroll: true });
@@ -1808,7 +1957,7 @@ function chHead() {
 function chRenderForm() {
   const panel = $('#challenge-panel');
   panel.textContent = '';
-  const name = h('input', { class: 'input input--lg', id: 'ch-name', type: 'text', placeholder: 'Business name, e.g. the café across the street', maxlength: '90', autocomplete: 'off', required: true, 'aria-label': 'Business name' });
+  const name = h('input', { class: 'input input--lg', id: 'ch-name', type: 'text', placeholder: innerWidth < 760 ? 'Business name' : 'Business name, e.g. the café across the street', maxlength: '90', autocomplete: 'off', required: true, 'aria-label': 'Business name' });
   const web = h('input', { class: 'input input--lg', id: 'ch-web', type: 'url', inputmode: 'url', placeholder: 'Website (optional)', autocomplete: 'off', 'aria-label': 'Website (optional)' });
   const go = btn('Start the clock', { kind: 'signal', size: 'lg', ic: 'play' });
   const form = h('form', { class: 'ch-inputs', novalidate: true }, name, web, go);
@@ -1934,8 +2083,10 @@ function chFinish(b) {
   chRenderRun();
   chime('done');
   if (!$('#challenge').hidden) {
-    const r = $('#ch-timer').getBoundingClientRect();
-    confetti({ x: r.left + r.width / 2, y: r.top + r.height / 2, count: 120, colors: ['#3DDC84', '#FF5B1F', '#F4F1EA', '#FFC247'] });
+    // launch from the lower corners so the paper never covers the finishing time
+    const colors = [cssVar('--money', '#3DDC84'), cssVar('--signal', '#FF5B1F'), cssVar('--text', '#F4F1EA'), cssVar('--warn', '#FFC247')];
+    confetti({ x: innerWidth * 0.08, y: innerHeight - 10, count: 70, colors, spread: 0.55, tilt: 0.45 });
+    confetti({ x: innerWidth * 0.92, y: innerHeight - 10, count: 70, colors, spread: 0.55, tilt: -0.45 });
   } else {
     toast({ kind: 'success', title: `${b.name} shipped in ${fmtSplit(CH.total)}`, text: COARSE ? 'Tap Live to see the splits and the QR code.' : 'Press L to see the splits and the QR code.' });
   }
@@ -1993,10 +2144,10 @@ function chRenderRun() {
   const chart = h('div');
   const note = h('div');
   const result = h('div');
-  const cat = b ? [str(b.category), str(b.address)].filter(Boolean).join(' · ') : CH.fromBlock ? 'from the block' : 'looking it up…';
+  const cat = b ? [b.category ? catLabel(b.category) : '', str(b.address)].filter(Boolean).join(' · ') : CH.fromBlock ? 'from the block' : 'looking it up…';
   let status = null;
-  if (CH.phase === 'done') status = CH.newPB && CH.pb != null ? h('span', { class: 'shipped shipped--pb', text: 'New best build' }) : h('span', { class: 'shipped', text: 'Shipped' });
-  else if (CH.phase === 'error') status = h('span', { class: 'shipped', style: { color: 'var(--error)', borderColor: 'rgba(255,77,77,.45)', background: 'rgba(255,77,77,.08)' }, text: 'Stopped' });
+  if (CH.phase === 'done') status = CH.newPB && CH.pb != null ? h('span', { class: 'shipped shipped--pb', text: '★ New best build' }) : h('span', { class: 'shipped', text: 'Shipped' });
+  else if (CH.phase === 'error') status = h('span', { class: 'shipped shipped--err', text: 'Stopped' });
   panel.append(chHead(), h('div', { class: 'ch-run' },
     h('div', { class: 'ch-biz' }, h('div', { style: { minWidth: '0' } }, h('h2', { text: CH.name || 'New business' }), h('span', { text: cat })), status),
     h('div', { class: 'ch-timer-row' }, timer, stage.el), segs,
@@ -2053,11 +2204,16 @@ function chUpdate() {
     st.s.textContent = a === 'Builder' ? `composing v${chScores.length + 1}` : a === 'Critic' ? `scoring v${chScores.length + 1} · gate ${PASS}` : AGENTS[a].role.toLowerCase();
   } else if (CH.phase === 'done') {
     st.v.className = 'ch-stage__v is-mono';
-    if (CH.pb != null) {
-      const d = CH.total - CH.pb;
-      st.el.style.setProperty('--c', d <= 0 ? 'var(--money)' : 'var(--warn)');
-      st.k.textContent = 'vs best build';
-      st.v.textContent = `${d <= 0 ? '−' : '+'}${(Math.abs(d) / 1000).toFixed(2)}s`;
+    if (CH.pb != null && CH.total - CH.pb <= 0) {
+      st.el.style.setProperty('--c', 'var(--money-ink)');
+      st.k.textContent = 'New best · vs previous';
+      st.v.textContent = `−${(Math.abs(CH.total - CH.pb) / 1000).toFixed(2)}s`;
+    } else if (CH.pb != null) {
+      // slower than the record is still a shipped site: lead with the result, keep the record as context
+      st.el.style.setProperty('--c', 'var(--money-ink)');
+      st.k.textContent = `Shipped · best ${fmtDur(CH.pb)}`;
+      st.v.className = 'ch-stage__v';
+      st.v.textContent = 'Live';
     } else {
       st.el.style.setProperty('--c', 'var(--money)');
       st.k.textContent = 'First build';
@@ -2098,7 +2254,7 @@ function chUpdate() {
   u.result.textContent = '';
   if (CH.phase === 'done' && b) {
     const abs = siteAbs(b);
-    const qr = qrImg(abs, 148);
+    const qr = qrImg(abs, 160);
     qr.removeAttribute('style');
     u.result.append(h('div', { class: 'ch-result' }, qr, h('div', { class: 'ch-result__actions' },
       h('div', { class: 'ch-result__url', text: abs }),
@@ -2122,10 +2278,13 @@ function openDialog(build) {
   p.textContent = '';
   d.hidden = false;
   return new Promise((resolve) => {
-    const close = (v) => { if (S.dialog !== ctl) return; S.dialog = null; d.hidden = true; p.textContent = ''; if (prevFocus && prevFocus.isConnected) prevFocus.focus({ preventScroll: true }); resolve(v); };
+    const close = (v) => { if (S.dialog !== ctl) return; S.dialog = null; d.hidden = true; p.textContent = ''; d.removeAttribute('aria-label'); syncInert(); if (prevFocus && prevFocus.isConnected) prevFocus.focus({ preventScroll: true }); resolve(v); };
     const ctl = { close };
     S.dialog = ctl;
     build(p, close);
+    const t = p.querySelector('.dialog__title');
+    d.setAttribute('aria-label', p.getAttribute('aria-label') || (t ? t.textContent : 'Dialog'));
+    syncInert();
     setTimeout(() => { const f = p.querySelector('[autofocus], input, button.btn--signal, button.btn--danger-solid, button'); if (f) f.focus(); }, 20);
   });
 }
@@ -2140,7 +2299,7 @@ function confirmDialog({ title, text, confirm = 'Confirm', danger = false }) {
 function addBusinessDialog() {
   closeMenu();
   openDialog((p, close) => {
-    const name = h('input', { class: 'input', name: 'name', required: true, maxlength: '90', placeholder: 'e.g. Sightglass Coffee', autocomplete: 'off', autofocus: true });
+    const name = h('input', { class: 'input', name: 'name', required: true, maxlength: '90', placeholder: 'e.g. the café across the street', autocomplete: 'off', autofocus: true });
     const website = h('input', { class: 'input', name: 'website', type: 'url', inputmode: 'url', placeholder: 'https:// (optional)', autocomplete: 'off' });
     const category = h('input', { class: 'input', name: 'category', placeholder: 'cafe, restaurant, bar, books… (optional)', maxlength: '40', autocomplete: 'off' });
     const address = h('input', { class: 'input', name: 'address', placeholder: 'Street address (optional)', maxlength: '120', autocomplete: 'off' });
@@ -2179,9 +2338,10 @@ function addBusinessDialog() {
   });
 }
 function qrImg(url, size) {
-  const img = h('img', { alt: `QR code for ${url}`, width: String(size), height: String(size), src: `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=0&data=${enc(url)}` });
+  const img = h('img', { alt: `QR code for ${url}`, width: String(size), height: String(size), src: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=0&data=${enc(url)}` });
   const box = h('div', { class: 'qr', style: { width: `${size + 20}px`, height: `${size + 20}px` } }, img);
-  img.addEventListener('error', () => { box.textContent = ''; box.append(h('div', { class: 'qr__fallback', text: 'QR service unreachable — use Copy link' })); });
+  // If the QR service is unreachable, show the address itself big enough to type from the back of the room.
+  img.addEventListener('error', () => { box.textContent = ''; box.append(h('div', { class: 'qr__fallback' }, h('b', { text: url.replace(/^https?:\/\//, '') }), 'Type this address')); });
   return box;
 }
 function qrDialog(b) {
@@ -2200,7 +2360,7 @@ function qrDialog(b) {
 function shortcutsDialog() {
   closeMenu();
   openDialog((p, close) => {
-    const rows = [['L', 'Open the live challenge'], ['S', 'Scout the block'], ['R', 'Run the block (build all scouted)'], ['/', 'Search the block'], ['Esc', 'Close whatever is open'], ['?', 'This list']];
+    const rows = [['L', 'Open the live challenge'], ['S', 'Scout the block'], ['R', 'Run the block (asks first — builds call paid models)'], ['/', 'Search the block'], ['T', 'Switch light / dark (⋯ menu has System)'], ['Esc', 'Close whatever is open'], ['?', 'This list']];
     p.append(h('h2', { class: 'dialog__title', text: 'Keyboard shortcuts' }),
       h('div', { class: 'shortcuts' }, rows.flatMap(([k, t]) => [h('kbd', { text: k }), h('span', { text: t })])),
       h('div', { class: 'dialog__actions' }, btn('Done', { kind: 'signal', size: '', onClick: () => close(true) })));
@@ -2224,6 +2384,7 @@ $('#menu').addEventListener('click', (e) => {
   const m = item.dataset.menu;
   if (m === 'add') addBusinessDialog();
   else if (m === 'shortcuts') shortcutsDialog();
+  else if (m === 'theme') cycleTheme();
   else if (m === 'reset') actReset();
   else if (m === 'sound') {
     S.sound = !S.sound;
@@ -2257,23 +2418,37 @@ function celebrate(b, ev) {
   if (S.celebrated.has(b.id)) return;
   S.celebrated.add(b.id);
   const amount = Number(b.amountCents) || Number(ev && ev.data && ev.data.amountCents) || 0;
-  const t = toast({ kind: 'money', title: amount ? `+${fmtUSD(amount)}` : 'Payment received', text: `${b.name} just claimed their site${b.paymentVerified ? ' · verified by Stripe' : ''}.` });
+  toast({ kind: 'money', title: amount ? `+${fmtUSD(amount)}` : 'Payment received', text: `${b.name} just claimed their site${b.paymentVerified ? ' · verified by Stripe' : ''}.` });
   chime('money');
-  const r = t.getBoundingClientRect();
-  confetti({ x: r.left + r.width / 2, y: r.top, count: 150 });
+  // centre-stage banner (the toast above carries it for screen readers)
+  $$('.paid-moment').forEach((x) => x.remove());
+  const moment = h('div', { class: 'paid-moment', 'aria-hidden': 'true' },
+    h('div', { class: 'paid-moment__k', text: b.paymentVerified ? 'Paid · verified by Stripe' : 'Paid via Stripe' }),
+    h('div', { class: 'paid-moment__amt', text: amount ? `+${fmtUSD(amount)}` : 'Paid' }),
+    h('div', { class: 'paid-moment__name' }, h('b', { text: b.name }), ' just claimed their site'));
+  document.body.append(moment);
+  setTimeout(() => moment.classList.add('is-out'), 2800);
+  setTimeout(() => moment.remove(), 3300);
+  const r = moment.getBoundingClientRect();
+  confetti({ x: r.left + r.width / 2, y: r.top + 20, count: 160 });
   const c = S.cards.get(b.id);
   if (c) { c.el.classList.remove('is-focus'); void c.el.offsetWidth; c.el.classList.add('is-focus'); }
+  const p = M.pins.get(b.id);
+  const pin = p && p.marker.getElement() && p.marker.getElement().querySelector('.pin');
+  if (pin) { pin.classList.remove('is-paid-pulse'); void pin.offsetWidth; pin.classList.add('is-paid-pulse'); }
 }
 let confettiRaf = 0;
 const confettiParts = [];
-function confetti({ x = innerWidth / 2, y = innerHeight / 3, count = 140, colors = ['#3DDC84', '#F4F1EA', '#FF5B1F', '#7CE0D3'] } = {}) {
+function confetti({ x = innerWidth / 2, y = innerHeight / 3, count = 140, colors, spread = 1.1, tilt = 0 } = {}) {
   if (REDUCED_MOTION) return;
+  // canvas needs real colors: read the current theme's tokens
+  colors = colors || [cssVar('--money', '#3DDC84'), cssVar('--text', '#F4F1EA'), cssVar('--signal', '#FF5B1F'), cssVar('--cfo', '#7CE0D3')];
   const cv = $('#confetti');
   const dpr = Math.min(2, devicePixelRatio || 1);
   if (cv.width !== innerWidth * dpr) { cv.width = innerWidth * dpr; cv.height = innerHeight * dpr; }
   const ctx = cv.getContext('2d');
   for (let i = 0; i < count; i++) {
-    const a = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.1;
+    const a = -Math.PI / 2 + tilt + (Math.random() - 0.5) * Math.PI * spread;
     const sp = 6 + Math.random() * 9;
     confettiParts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.35, w: 5 + Math.random() * 6, h: 3 + Math.random() * 5, c: colors[i % colors.length], life: 0, max: 110 + Math.random() * 60 });
   }
@@ -2382,8 +2557,9 @@ document.addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
   const chOpen = !$('#challenge').hidden;
   if (k === 'l') { e.preventDefault(); openChallenge(); }
+  else if (k === 't') { e.preventDefault(); toggleTheme(); }
   else if (k === 's' && !chOpen) { e.preventDefault(); actScout(); }
-  else if (k === 'r' && !chOpen) { e.preventDefault(); actRunBlock(); }
+  else if (k === 'r' && !chOpen) { e.preventDefault(); confirmRunBlock(); }
   else if (k === '/' && !chOpen) { e.preventDefault(); if (S.drawerId) closeDrawer(); $('#search').focus(); }
   else if (e.key === '?') { e.preventDefault(); shortcutsDialog(); }
 });
@@ -2395,10 +2571,80 @@ document.addEventListener('keydown', (e) => {
   const f = $$('a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])', layer).filter((el) => el.offsetParent !== null);
   if (!f.length) return;
   const first = f[0], last = f[f.length - 1];
-  if (!layer.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+  if (!layer.contains(document.activeElement) || document.activeElement === layer) { e.preventDefault(); (e.shiftKey ? last : first).focus(); }
   else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
   else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
 });
+
+/** A stray R key must not start paid builds: the keyboard path asks first (the button does not). */
+async function confirmRunBlock() {
+  const waiting = [...S.biz.values()].filter((b) => b.status === 'scouted').length;
+  if (!waiting) { actRunBlock(); return; }
+  const n = Math.min(8, waiting);
+  const ok = await confirmDialog({ title: 'Run the block?', text: `Build ${n} ${n === 1 ? 'site' : 'sites'} now, three at a time. Each build calls paid models.`, confirm: 'Run the block' });
+  if (ok) actRunBlock();
+}
+/** Only the modal on top is reachable; everything behind it is inert (screen readers included). */
+function syncInert() {
+  const chOpen = !$('#challenge').hidden;
+  $('#app').inert = !!(S.drawerId || chOpen || S.dialog);
+  $('#drawer').inert = !!S.dialog;
+  $('#challenge').inert = !!S.dialog;
+}
+/** One polite, throttled announcement for the moments that matter (the feed itself is aria-live="off"). */
+const SR = { last: 0, t: 0 };
+function announce(text) {
+  const now = Date.now();
+  if (now - SR.last < 3000) return;
+  SR.last = now;
+  const el = $('#sr-live');
+  if (!el) return;
+  el.textContent = '';
+  clearTimeout(SR.t);
+  SR.t = setTimeout(() => { el.textContent = text.slice(0, 240); }, 40);
+}
+/** One-line orientation for first-time viewers (judges). Dismissal is remembered on this device. */
+function renderIntro() {
+  const el = $('#intro');
+  if (!el) return;
+  let off = false;
+  try { off = localStorage.getItem('co.intro') === 'off'; } catch { /* storage unavailable */ }
+  el.hidden = off;
+  if (off) return;
+  el.textContent = '';
+  const x = h('button', { class: 'intro__x', type: 'button', 'aria-label': 'Dismiss this note' }, icon('close'));
+  x.addEventListener('click', () => { el.hidden = true; try { localStorage.setItem('co.intro', 'off'); } catch { /* storage unavailable */ } });
+  el.append(h('span', { class: 'intro__dot', 'aria-hidden': 'true' }),
+    h('span', { class: 'intro__text' }, 'Eight agents find real independents around ', h('b', { text: hqShort() }), `, build each one a site, reject anything under ${PASS} on taste, and attach a Stripe checkout. `,
+      COARSE ? 'Tap Challenge to race one live.' : ['Press ', h('kbd', { text: 'L' }), ' to race one live.']), x);
+}
+/** Mobile: one section at a time (Block / Map / Channel). */
+function setMtab(tab) {
+  $('#floor').dataset.mtab = tab;
+  for (const b of $$('#mtabs .mtab')) b.setAttribute('aria-pressed', String(b.dataset.mtab === tab));
+  // the map was display:none when it first fitted its pins, so fit once more the first time it is shown
+  if (tab === 'map' && M.map) setTimeout(() => { M.map.invalidateSize(); if (!M.shownOnce) { M.shownOnce = true; fitMap(); } }, 30);
+  if (tab === 'channel') { const f = $('#feed'); f.scrollTop = f.scrollHeight; }
+}
+function updateMtabs() {
+  const g = $('#mtab-grid'), m = $('#mtab-map'), c = $('#mtab-channel');
+  if (!g) return;
+  g.textContent = String(S.biz.size);
+  m.textContent = String(M.pins.size);
+  c.textContent = fmtInt(S.events.length);
+}
+/** Horizontal strips (pills, filters, agent chips) fade at an edge that has more to scroll. */
+function edgeFade(el) {
+  if (!el) return;
+  const upd = () => {
+    const max = el.scrollWidth - el.clientWidth;
+    el.classList.toggle('fade-r', max > 2 && el.scrollLeft < max - 2);
+    el.classList.toggle('fade-l', max > 2 && el.scrollLeft > 2);
+  };
+  el.addEventListener('scroll', upd, { passive: true });
+  try { new ResizeObserver(upd).observe(el); new MutationObserver(upd).observe(el, { childList: true, subtree: true }); } catch { /* old browser */ }
+  upd();
+}
 
 function wire() {
   const scoutBtn = $('#btn-scout'), runBtn = $('#btn-run');
@@ -2407,6 +2653,12 @@ function wire() {
   scoutBtn.addEventListener('click', () => actScout());
   runBtn.addEventListener('click', () => actRunBlock());
   $('#btn-live').addEventListener('click', () => openChallenge());
+  $('#btn-theme').addEventListener('click', () => toggleTheme());
+  for (const b of $$('#mtabs .mtab')) b.addEventListener('click', () => setMtab(b.dataset.mtab));
+  // flush re-orders that waited while the pointer / focus was on a card
+  $('#grid').addEventListener('pointerleave', () => { if (S.gridDirty) layoutGrid({ force: true }); });
+  $('#grid').addEventListener('focusout', () => setTimeout(() => { if (S.gridDirty && !$('#grid').contains(document.activeElement)) layoutGrid(); }, 0));
+  for (const id of ['#pills', '#grid-filters', '#feed-filters']) edgeFade($(id));
   $('#drawer-scrim').addEventListener('click', closeDrawer);
   $('#challenge').addEventListener('mousedown', (e) => { if (e.target.id === 'challenge') closeChallenge(); });
   const radius = $('#radius');
@@ -2422,16 +2674,16 @@ function wire() {
   $('#map-sub').textContent = `· ${S.radius >= 1000 ? `${S.radius / 1000} km` : `${S.radius} m`} scout radius`;
   const search = $('#search');
   let st = 0;
-  search.addEventListener('input', () => { clearTimeout(st); st = setTimeout(() => { S.search = search.value; layoutGrid(); }, 90); });
+  search.addEventListener('input', () => { clearTimeout(st); st = setTimeout(() => { S.search = search.value; layoutGrid({ force: true }); }, 90); });
   const sort = $('#sort');
   sort.value = S.sort;
-  sort.addEventListener('change', () => { S.sort = sort.value; try { localStorage.setItem('co.sort', S.sort); } catch { /* storage unavailable */ } layoutGrid(); });
+  sort.addEventListener('change', () => { S.sort = sort.value; try { localStorage.setItem('co.sort', S.sort); } catch { /* storage unavailable */ } layoutGrid({ force: true }); });
   const feed = $('#feed'), jump = $('#feed-jump');
   feed.addEventListener('scroll', () => { if (feed.scrollHeight - feed.scrollTop - feed.clientHeight < 40) { S.feedUnread = 0; jump.hidden = true; } }, { passive: true });
   jump.addEventListener('click', () => { feed.scrollTo({ top: feed.scrollHeight, behavior: REDUCED_MOTION ? 'auto' : 'smooth' }); S.feedUnread = 0; jump.hidden = true; });
   $('#sound-state').textContent = S.sound ? 'On' : 'Off';
   addEventListener('hashchange', () => { if (S.loaded) openFromHash(); });
-  setInterval(syncWorking, 1000);
+  setInterval(() => { syncWorking(); if (S.gridDirty) layoutGrid(); }, 1000);
 }
 
 // ─────────────────────────────────────────────────────────── boot
@@ -2445,6 +2697,8 @@ async function boot() {
   initRibbon();
   renderPills();
   wire();
+  applyTheme();
+  renderIntro();
   startClock();
   initMap();
   renderCrew();

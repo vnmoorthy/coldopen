@@ -6,7 +6,25 @@
   <title>Cold Open — Mission Control</title>
   <meta name="description" content="Cold Open: the agency that does the work before the sale. AI agents scout real small businesses around Cloudflare HQ, extract their brand, build and taste-gate a site, and attach a Stripe checkout — live." />
   <meta name="theme-color" content="#0A0A0B" />
-  <meta name="color-scheme" content="dark" />
+  <meta name="color-scheme" content="dark light" />
+  <script>
+    /* Theme before first paint (no flash). Preference: "system" (default) | "light" | "dark".
+       ?theme=light|dark|system overrides it for this page load only (handy for screenshots). */
+    (function () {
+      var d = document.documentElement, pref = 'system';
+      try { var s = localStorage.getItem('co.theme'); if (s === 'light' || s === 'dark') pref = s; } catch (e) {}
+      try { var q = new URLSearchParams(location.search).get('theme'); if (q === 'light' || q === 'dark' || q === 'system') pref = q; } catch (e) {}
+      var light = false;
+      try { light = window.matchMedia('(prefers-color-scheme: light)').matches; } catch (e) {}
+      var t = pref === 'system' ? (light ? 'light' : 'dark') : pref;
+      d.setAttribute('data-theme', t);
+      d.setAttribute('data-theme-pref', pref);
+      var m = document.querySelector('meta[name="theme-color"]');
+      if (m) m.setAttribute('content', t === 'light' ? '#F6F3EC' : '#0A0A0B');
+      var cs = document.querySelector('meta[name="color-scheme"]');
+      if (cs) cs.setAttribute('content', t);
+    })();
+  </script>
   <meta property="og:title" content="Cold Open — Mission Control" />
   <meta property="og:description" content="The agency that does the work before the sale." />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
@@ -24,8 +42,8 @@
     <header class="topbar" role="banner">
       <div class="brand">
         <svg class="brand__mark" viewBox="0 0 32 32" aria-hidden="true">
-          <rect x="8.5" y="8.5" width="15" height="15" rx="3.2" transform="rotate(45 16 16)" fill="#FF5B1F" />
-          <rect x="13.2" y="13.2" width="5.6" height="5.6" rx="1.4" transform="rotate(45 16 16)" fill="#0A0A0B" />
+          <rect x="8.5" y="8.5" width="15" height="15" rx="3.2" transform="rotate(45 16 16)" class="brand__fill" />
+          <rect x="13.2" y="13.2" width="5.6" height="5.6" rx="1.4" transform="rotate(45 16 16)" class="brand__core" />
         </svg>
         <div class="brand__text">
           <div class="brand__name">Cold <em>Open</em></div>
@@ -46,7 +64,7 @@
         </button>
         <button class="btn btn--signal" id="btn-live" type="button" data-shortcut="L">
           <span class="live-dot" aria-hidden="true"></span>
-          <span class="btn__label">Live challenge</span><span class="btn__short">Live</span><kbd>L</kbd>
+          <span class="btn__label">Live challenge</span><span class="btn__short">Challenge</span><kbd>L</kbd>
         </button>
       </nav>
 
@@ -55,6 +73,11 @@
           <span class="conn__dot" aria-hidden="true"></span><span class="conn__label">Connecting</span>
         </div>
         <div class="clock" id="clock" aria-label="San Francisco time">--:--:--</div>
+        <button class="icon-btn" id="btn-theme" type="button" aria-label="Switch light or dark theme" data-tip="Switch theme · T" data-tip-pos="bottom">
+          <svg class="theme-ico theme-ico--system" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="6.3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 3.7a6.3 6.3 0 0 1 0 12.6z" fill="currentColor"/></svg>
+          <svg class="theme-ico theme-ico--light" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="3.4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 2.6v2M10 15.4v2M2.6 10h2M15.4 10h2M4.8 4.8l1.4 1.4M13.8 13.8l1.4 1.4M4.8 15.2l1.4-1.4M13.8 6.2l1.4-1.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <svg class="theme-ico theme-ico--dark" viewBox="0 0 20 20" aria-hidden="true"><path d="M15.6 12.3A6.4 6.4 0 0 1 7.7 4.4a6.4 6.4 0 1 0 7.9 7.9z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+        </button>
         <div class="menu-wrap">
           <button class="icon-btn" id="btn-menu" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="More">
             <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="4.5" cy="10" r="1.6" fill="currentColor"/><circle cx="10" cy="10" r="1.6" fill="currentColor"/><circle cx="15.5" cy="10" r="1.6" fill="currentColor"/></svg>
@@ -62,6 +85,7 @@
           <div class="menu" id="menu" role="menu" hidden>
             <button role="menuitem" type="button" data-menu="add">Add a business…</button>
             <button role="menuitem" type="button" data-menu="shortcuts">Keyboard shortcuts</button>
+            <button role="menuitem" type="button" data-menu="theme"><span>Theme</span><span class="menu__state" id="theme-state">System</span></button>
             <button role="menuitem" type="button" data-menu="sound"><span>Sound effects</span><span class="menu__state" id="sound-state">On</span></button>
             <a role="menuitem" href="/api/state" target="_blank" rel="noopener">Raw state (JSON)</a>
             <div class="menu__sep" role="separator"></div>
@@ -74,13 +98,20 @@
     <!-- ============ STATS RIBBON / FUNNEL ============ -->
     <section class="ribbon" id="ribbon" aria-label="Pipeline stats"></section>
 
+    <!-- mobile only: one section at a time -->
+    <div class="mtabs" id="mtabs" role="group" aria-label="Show section">
+      <button class="mtab" type="button" data-mtab="grid" aria-pressed="true">Block <b id="mtab-grid">0</b></button>
+      <button class="mtab" type="button" data-mtab="map" aria-pressed="false">Map <b id="mtab-map">0</b></button>
+      <button class="mtab" type="button" data-mtab="channel" aria-pressed="false">Channel <b id="mtab-channel">0</b></button>
+    </div>
+
     <!-- ============ THE FLOOR ============ -->
-    <main class="floor" id="floor">
+    <main class="floor" id="floor" data-mtab="grid">
 
       <section class="col col--map" aria-label="Map and crew">
         <div class="panel panel--map">
           <div class="panel__head">
-            <div class="kicker"><span class="kdot"></span>The block <span class="kicker__muted" id="map-sub">· SoMa</span></div>
+            <h2 class="kicker"><span class="kdot"></span>Map <span class="kicker__muted" id="map-sub">· SoMa</span></h2>
             <label class="radius">
               <span>Radius</span>
               <select id="radius" aria-label="Scout radius">
@@ -96,7 +127,7 @@
         </div>
         <div class="panel panel--crew">
           <div class="panel__head">
-            <div class="kicker"><span class="kdot"></span>The crew <span class="kicker__muted">· 8 agents</span></div>
+            <h2 class="kicker"><span class="kdot"></span>The crew <span class="kicker__muted">· 8 agents</span></h2>
             <div class="kicker kicker__muted" id="crew-sub"></div>
           </div>
           <div class="crew" id="crew"></div>
@@ -120,6 +151,7 @@
               </select>
             </div>
           </div>
+          <p class="intro" id="intro" hidden></p>
           <div class="funnel" id="funnel" aria-label="Pipeline funnel"></div>
           <div class="filters" id="grid-filters" role="toolbar" aria-label="Filter businesses by stage"></div>
         </div>
@@ -131,11 +163,11 @@
 
       <section class="col col--channel" aria-label="Agent channel">
         <div class="panel__head panel__head--channel">
-          <div class="kicker"><span class="kdot kdot--live"></span>#agent-channel <span class="kicker__muted" id="feed-count"></span></div>
+          <h2 class="kicker"><span class="kdot kdot--live"></span>#agent-channel <span class="kicker__muted" id="feed-count"></span></h2>
         </div>
         <div class="chips" id="feed-filters" role="toolbar" aria-label="Filter agent messages"></div>
         <div class="feed-wrap">
-          <ol class="feed" id="feed" aria-live="polite" aria-relevant="additions"></ol>
+          <ol class="feed" id="feed" role="log" aria-live="off" aria-label="Agent messages"></ol>
           <button class="feed-jump" id="feed-jump" type="button" hidden>New messages ↓</button>
         </div>
       </section>
@@ -144,7 +176,7 @@
 
   <!-- ============ DETAILS DRAWER ============ -->
   <div class="scrim" id="drawer-scrim" hidden></div>
-  <aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" hidden>
+  <aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" tabindex="-1" hidden>
     <div class="drawer__inner" id="drawer-inner"></div>
   </aside>
 
@@ -158,7 +190,8 @@
     <div class="dialog__panel" id="dialog-panel"></div>
   </div>
 
-  <div class="toasts" id="toasts" aria-live="assertive" aria-atomic="false"></div>
+  <div class="toasts" id="toasts"></div>
+  <div class="sr-only" id="sr-live" aria-live="polite" aria-atomic="true"></div>
   <canvas class="confetti" id="confetti" aria-hidden="true"></canvas>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="" defer></script>

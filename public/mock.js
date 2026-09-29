@@ -271,7 +271,7 @@ export function createMockBackend() {
     },
     autopilot(ui) {
       const open = QS.get('open');
-      if (open === 'challenge') { ui.openChallenge(); setTimeout(() => ui.chStart({ name: 'Sightglass Coffee', website: 'https://sightglasscoffee.com' }), 400); }
+      if (open === 'challenge') { ui.openChallenge(); setTimeout(() => ui.chStart({ name: 'Harbor Lane Coffee', website: 'https://example.com' }), 400); }
       if (open === 'challenge-form') ui.openChallenge();
       if (open === 'drawer') ui.openDrawer(QS.get('id') || 'second-draft-books');
       if (open === 'money') setTimeout(() => markPaid('oyster-point-taqueria'), 1500);

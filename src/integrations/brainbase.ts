@@ -33,7 +33,7 @@ export const BRAINBASE_HARNESS = "claude_code";
 /** Cheapest/fastest Anthropic model in Brainbase's documented model list. */
 export const BRAINBASE_MODEL = "claude-haiku-4-5-20251001";
 
-const BUDGET_MS = 150_000;
+const BUDGET_MS = 290_000;
 
 /** Why the most recent review returned null (e.g. "Brainbase account is out of credits"), for the UI. */
 export let lastBrainbaseError: string | null = null;

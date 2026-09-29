@@ -301,12 +301,17 @@ Seven previews from the live run, each shown with the Critic score of the versio
 
 ## Mission Control
 
-<p align="center"><img src="docs/screenshots/mission-control.png" alt="Mission Control on desktop: integration pills, the stats ribbon, a map of the block with status-colored pins, the crew, business cards with taste rings, and the live agent channel." width="100%"></p>
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="docs/screenshots/mission-control-light.png">
+  <img src="docs/screenshots/mission-control.png" alt="Mission Control on desktop: integration pills, the stats ribbon, a map of the block with status-colored pins, the crew, business cards with taste rings, and the live agent channel. Shown in the light theme when GitHub is in light mode." width="100%">
+</picture>
+
+<p align="center"><sub>Light and dark themes: press <kbd>T</kbd> or use the sun/moon button. The screenshot follows your GitHub theme.</sub></p>
 
 <table>
 <tr>
 <td width="68%" valign="top"><img src="docs/screenshots/live-challenge.png" alt="The Live challenge speedrun view for Game Post: a large timer, per-agent splits, the taste-gate bar, the Critic's note and a QR code to the live preview." width="100%"></td>
-<td width="32%" valign="top"><img src="docs/screenshots/mission-control-mobile.png" alt="Mission Control on a phone: the header buttons, integration pills, the stats ribbon as a two-column grid, and the first business card." width="100%"></td>
+<td width="32%" valign="top"><img src="docs/screenshots/mission-control-mobile.png" alt="Mission Control on a phone: compact header, the stats ribbon, and Block / Map / Channel tabs." width="100%"></td>
 </tr>
 <tr>
 <td colspan="2" align="center"><sub><b>Top:</b> the board. <b>Left:</b> a Live challenge. <b>Right:</b> the phone layout.</sub></td>
