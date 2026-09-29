@@ -1,0 +1,127 @@
+name: Bug report
+description: Something in Cold Open does not work the way the docs say it does.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this.
+
+        - **Found a preview of your own business?** Press **Remove this preview** on the page first. It works immediately and needs no account. Then, if you like, tell us here what was wrong so we can fix the cause.
+        - **Security issue?** Please do not file it here. Follow [SECURITY.md](https://github.com/vnmoorthy/coldopen/blob/main/SECURITY.md) to report it privately.
+        - **Never paste** API keys, webhook secrets, `.dev.vars` contents or personal contact details.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: A clear description of the bug.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: What should have happened instead. Link the doc or code that says so, if you can.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open Mission Control
+        2. Press Scout the block
+        3. Press Build on ...
+        4. See ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where
+      multiple: true
+      options:
+        - Mission Control (dashboard)
+        - A preview site (/s/:id)
+        - Checkout, /claimed or the Stripe webhook
+        - API (/api/*)
+        - WebSocket / live updates
+        - Deploy or setup (wrangler, secrets, setup-secrets.sh)
+        - Documentation
+        - Tests or CI
+    validations:
+      required: true
+
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Which agent, if any
+      multiple: true
+      options:
+        - Scout
+        - Archivist
+        - Builder
+        - Critic
+        - Director
+        - Closer
+        - CFO
+        - Brainbase second opinion
+        - Not agent-specific
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Deployment
+      options:
+        - The public demo (coldopen.vnarasingamoorthy.workers.dev)
+        - My own deployment
+        - Local (npm run dev)
+    validations:
+      required: true
+
+  - type: input
+    id: business
+    attributes:
+      label: Business id or preview URL
+      description: If the bug is about one business, for example /s/some-business-id.
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Integrations and LLM
+      description: Paste the `llm` and `integrations` fields from `GET /api/config`. They contain booleans and labels only, never keys.
+      render: json
+
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: A release (for example 1.0.0) or a commit SHA, for your own deployment.
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser, OS and device width
+      description: Only needed for UI and layout bugs.
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and screenshots
+      description: Relevant agent-channel messages, browser console output or `npx wrangler tail` output. Remove anything secret first. Screenshots can be dragged in.
+      render: shell
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you submit
+      options:
+        - label: I removed API keys, webhook secrets and personal contact details from this report.
+          required: true
+        - label: I searched existing issues for this bug.
+          required: true

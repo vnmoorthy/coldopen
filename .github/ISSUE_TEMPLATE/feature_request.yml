@@ -1,0 +1,73 @@
+name: Feature request
+description: Suggest an improvement, a new agent or a new integration for Cold Open.
+title: "[feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea. Please check [ROADMAP.md](https://github.com/vnmoorthy/coldopen/blob/main/ROADMAP.md) first: it may already be planned, or listed under "Not planned" with the reason.
+        For open-ended questions, [Discussions](https://github.com/vnmoorthy/coldopen/discussions) is a better place.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What is hard, slow or missing today? Who runs into it, the operator in Mission Control or a business owner looking at a preview?
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: The idea
+      description: What you would like Cold Open to do. For a new agent, say what it reads, what it writes, where it sits in the pipeline, and whether its failure should stop a build.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - Scouting (OpenStreetMap)
+        - Brand extraction (Archivist)
+        - Site copy (Builder)
+        - Taste gate (Critic)
+        - Images or video (Director)
+        - Pitch and checkout (Closer)
+        - Spend and revenue (CFO)
+        - Generated preview sites
+        - Mission Control
+        - A new integration
+        - Deploy, docs or developer experience
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+      description: Other ways to solve the same problem, including doing nothing.
+
+  - type: checkboxes
+    id: contract
+    attributes:
+      label: Cold Open's hard rules
+      description: Proposals that break these will not be merged. See CONTRIBUTING.md and docs/ETHICS.md.
+      options:
+        - label: Works with zero API keys, or degrades gracefully when its key is missing.
+          required: true
+        - label: Keeps the preview contract ("Unofficial concept preview" banner, noindex,nofollow, Claim and Remove on every page).
+          required: true
+        - label: Does not fabricate reviews, ratings, prices, metrics or facts about real businesses.
+          required: true
+        - label: Needs no new npm dependency, or explains below why one is worth it.
+        - label: I would like to help build this.
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Links, sketches, prior art.

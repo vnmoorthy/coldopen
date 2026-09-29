@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Remove a preview of your business
+    url: https://github.com/vnmoorthy/coldopen/blob/main/docs/FAQ.md#i-found-a-preview-of-my-business-how-do-i-remove-it
+    about: Press "Remove this preview" on the preview page itself. It works immediately and needs no account, email or reason.
+  - name: Report a security vulnerability
+    url: https://github.com/vnmoorthy/coldopen/blob/main/SECURITY.md
+    about: Please report security issues privately, as described in SECURITY.md. Do not open a public issue with details.
+  - name: Questions and ideas
+    url: https://github.com/vnmoorthy/coldopen/discussions
+    about: Ask how something works, share what you built, or float an idea before writing it up.

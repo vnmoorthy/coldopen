@@ -2,7 +2,7 @@
 
 Every endpoint Mission Control uses is public and documented here, so you can drive Cold Open from a script, a bot or another agent.
 
-- **Base URL:** `https://coldopen.vnarasingamoorthy.workers.dev` (or your own `PUBLIC_URL`)
+- **Base URL:** your own deployment's `PUBLIC_URL`, or `http://localhost:8787` under `npm run dev`. The public demo at `https://coldopen.vnarasingamoorthy.workers.dev` answers the same routes, but please use it for reads only (see the warning below).
 - **Format:** JSON in, JSON out, unless a route says otherwise (preview sites and the post-checkout page return HTML, images return bytes).
 - **Routing:** the Worker (`src/index.ts`) forwards `/api/*` to the HQ Durable Object instance `main`. `/s/*`, `/img/*` and `/claimed` are handled in the Worker. Everything else is static assets from `public/`.
 - **Types:** `Business`, `Brand`, `SiteSpec`, `ScoreVersion`, `AgentEvent`, `Stats` and `Snapshot` are defined in [`src/types.ts`](../src/types.ts).
@@ -10,8 +10,11 @@ Every endpoint Mission Control uses is public and documented here, so you can dr
 - **Auth:** none. This is a hackathon demo that operates on public data. If you deploy your own copy for real use, put the `/api/*` routes behind [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/policies/access/) or similar. The owner-facing routes (`/s/:id`, `/s/:id/claim`, `/s/:id/remove`, `/claimed`) and the Stripe webhook must stay public.
 
 ```bash
-export CO=https://coldopen.vnarasingamoorthy.workers.dev
+export CO=http://localhost:8787   # your own deployment; never point write calls at the public demo
 ```
+
+> [!WARNING]
+> The API has no authentication. On the public demo, `POST /api/reset` would wipe a board that other people are looking at, and `/api/scout`, `/api/run-block` and `/api/businesses/:id/build` spend the owner's model budget. Run every write example on this page against your own deployment or `npm run dev`.
 
 ## Contents
 
@@ -128,7 +131,7 @@ Adds one business by hand. This is what **Live challenge** calls.
 | `category` | string | no |
 | `address` | string | no |
 
-If only `name` is given, HQ looks the name up within 1.5 km of HQ, first on Nominatim (one fast, accent-insensitive request) and then, if that returns nothing, on the Overpass mirror chain, and fills in location, website and tags from the best match. Otherwise the business is created from the fields you sent. Returns the created `Business` with status `scouted`.
+If no `address` is given, HQ looks the name up within 1.5 km of HQ (capped at 15 s, or 8 s when `website` is given), first on Nominatim (one fast, accent-insensitive request) and then, if that returns nothing, on the Overpass mirror chain, and fills in location, website and tags from the best match. Otherwise the business is created from the fields you sent. Returns `201` with the new `Business` (status `scouted`), `200` with the existing one if the name or OSM id is already on the board, and `409` if that business was removed by its owner.
 
 ```bash
 curl -s -X POST $CO/api/businesses -H 'content-type: application/json' \
@@ -160,7 +163,7 @@ If the Durable Object itself restarts while builds are in flight, any business s
 
 ### `POST /api/run-block`
 
-Builds every business with status `scouted`, three at a time.
+Builds up to `limit` (default 8, clamped 1–60) businesses in `scouted` status, nearest to HQ first, three at a time. Returns `400` if nothing is waiting.
 
 | Field | Type | Default |
 |---|---|---|
@@ -168,7 +171,7 @@ Builds every business with status `scouted`, three at a time.
 
 ```bash
 curl -s -X POST $CO/api/run-block -H 'content-type: application/json' -d '{"limit":8}'
-# 202 {"ok":true}
+# 202 {"ok":true,"queued":8,"ids":[...]}
 ```
 
 ---
@@ -220,17 +223,20 @@ Sets `biz.video = { status: "ready", url, provider: "external" }` and returns th
 
 ### `DELETE /api/businesses/:id`
 
-Removes a preview. Status becomes `removed`, `/s/:id` renders a removed page from then on, and Mission Control receives a `removed` message. Returns `{"ok":true}`. This is the same takedown the owner triggers from the preview banner.
+Removes a preview. Status becomes `removed`, `/s/:id` returns `410` with a removed page from then on, and Mission Control receives a `removed` message. Returns `{"ok":true}`. This is the same takedown the owner triggers from the preview banner.
 
 ### `POST /api/reset`
 
-Wipes all businesses and events.
+Wipes all businesses and events, including the record of owners who asked to be removed.
 
 | Field | Type | Required value |
 |---|---|---|
 | `confirm` | string | `"RESET"` |
 
 Without the exact confirmation string the request is refused.
+
+> [!WARNING]
+> Run this against your own deployment only. It deletes every business, every event and the removal list.
 
 ```bash
 curl -s -X POST $CO/api/reset -H 'content-type: application/json' -d '{"confirm":"RESET"}'
@@ -240,11 +246,11 @@ curl -s -X POST $CO/api/reset -H 'content-type: application/json' -d '{"confirm"
 
 ## Payments
 
-The money path uses a Stripe Payment Link. With a test-mode `STRIPE_SECRET_KEY`, the Closer creates a dedicated $49 Payment Link for each business (a Price and a Payment Link named after the business, created idempotently, with the `/claimed` redirect and the business id in metadata), then appends `?client_reference_id=<businessId>`. Without a key, or with a live key, `biz.paymentUrl` is the shared `PAYMENT_LINK` with the same `client_reference_id` appended, so Stripe carries the business id through checkout either way. Payments are then verified twice: on `/claimed` through the Checkout Session API, and through the signed webhook.
+The money path uses a Stripe Payment Link. With a test-mode `STRIPE_SECRET_KEY`, the Closer creates a dedicated $49 Payment Link for each business (a Price and a Payment Link named after the business, created idempotently, with the `/claimed` redirect and the business id in metadata), then appends `?client_reference_id=<businessId>`. Without a key, or with a live key, `biz.paymentUrl` is the shared `PAYMENT_LINK` with the same `client_reference_id` appended, so Stripe carries the business id through checkout either way. When the Stripe secrets are set, payments are then verified twice: on `/claimed` through the Checkout Session API, and through the signed webhook.
 
 ### `POST /api/stripe/webhook`
 
-Receives `checkout.session.completed` and marks the business named by `client_reference_id` as paid.
+Handles `checkout.session.completed` and `checkout.session.async_payment_succeeded`. The business comes from `client_reference_id`, then `metadata.business_id`. Other event types get `200 {received:true, ignored:<type>}`.
 
 When `STRIPE_WEBHOOK_SECRET` is set, the request is verified per [Stripe's manual verification guide](https://docs.stripe.com/webhooks#verify-manually) with WebCrypto, no SDK:
 
@@ -255,7 +261,7 @@ When `STRIPE_WEBHOOK_SECRET` is set, the request is verified per [Stripe's manua
 
 Requests with a missing, malformed, stale or mismatched signature are rejected with a 4xx and never mark anything paid.
 
-When the secret is **not** set, events cannot be signature-checked. That is acceptable for a test-mode demo and not acceptable for real money. Set the secret. `scripts/setup-secrets.sh` can register the endpoint and store the secret for you through the Stripe CLI.
+When the secret is not set and `STRIPE_SECRET_KEY` is set, the session is re-fetched from Stripe and only that is trusted (`400` if the fetch fails). With neither secret, any POSTed JSON `checkout.session.completed` event is recorded as an **unverified** payment. Set both secrets before taking real money. `scripts/setup-secrets.sh` can register the endpoint and store the secret for you through the Stripe CLI.
 
 Local testing with the Stripe CLI:
 
@@ -268,8 +274,8 @@ stripe trigger checkout.session.completed
 
 Where Stripe sends the owner after paying. Returns an HTML thank-you page.
 
-- With `STRIPE_SECRET_KEY`: retrieves the Checkout Session from the Stripe API, requires it to be paid and to carry a `client_reference_id`, then marks that business paid with `paymentVerified: true`.
-- Without it: marks the business paid with `paymentVerified: false`, so the record is honest about what was checked.
+- With `STRIPE_SECRET_KEY`: retrieves the session. If Stripe says `paid` or `no_payment_required`, it marks the business paid (verified). The business comes from `client_reference_id`, then `metadata.business_id`, then the `co_claim` cookie. If Stripe cannot be reached, it falls back to the cookie.
+- Without the key, or on fallback: it marks the business paid with `paymentVerified: false` only when a valid `co_claim` cookie names an existing business. Otherwise nothing is recorded.
 
 The redirect and the webhook both end in the same `markPaid(id)` on HQ.
 
@@ -281,11 +287,11 @@ The redirect and the webhook both end in the same `markPaid(id)` on HQ.
 
 The generated site, as HTML, rendered by `src/site/render.ts` from `biz.site` and `biz.brand`. Every page:
 
-- carries `<meta name="robots" content="noindex,nofollow">`;
+- carries `<meta name="robots" content="noindex,nofollow">` and is sent with an `X-Robots-Tag: noindex, nofollow` header;
 - shows a sticky banner: *"Unofficial concept preview made for {name} by Cold Open — not the official site."* with **Claim it · $49** and **Remove this preview**;
 - labels unconfirmed offerings *"Preview — owner to confirm"* without prices, and unknown hours *"Hours — owner to confirm"*.
 
-Removed businesses render a removed page. Unknown ids render a not-found page.
+Removed businesses render a removed page with status `410`. Unknown ids render a not-found page with status `404`.
 
 ### `GET /s/:id/claim`
 
@@ -301,7 +307,7 @@ Removed businesses render a removed page. Unknown ids render a not-found page.
 
 ### `GET /img/:key`
 
-Serves hero image bytes from the `MEDIA` KV namespace. Keys look like `img:{businessId}:{n}`, and `biz.heroImage` already holds the full path (`/img/img:{id}:{n}`). The content type is sniffed from the bytes (`image/jpeg`, `image/png` or `image/webp`), the KV metadata records which source made the image (`flux-1-schnell`, `flux-2-klein-4b`, `gpt-image-1`, `dall-e-3` or `their og:image`), and responses are cacheable for one day.
+Serves hero image bytes from the `MEDIA` KV namespace. Keys are `img:{businessId}:{Date.now()}`, and `biz.heroImage` is `/img/` + `encodeURIComponent(key)`, for example `/img/img%3Aharbor-lane-coffee%3A1790000000000`. The content type is sniffed from the bytes (`image/jpeg`, `image/png` or `image/webp`), the KV metadata records which source made the image (`flux-1-schnell`, `flux-2-klein-4b`, `gpt-image-1`, `dall-e-3` or `their og:image`), and responses are cacheable for one day.
 
 ---
 
@@ -321,6 +327,7 @@ ws.onmessage = (m) => {
     case "business": /* msg.business: Business, full object after every change */ break;
     case "stats":    /* msg.stats: Stats */ break;
     case "removed":  /* msg.id: string */ break;
+    case "pong":     /* msg.ts: number, the reply to a {"type":"ping"} you sent */ break;
     default:         /* ignore unknown types, including the SDK's own cf_agent_* messages */
   }
 };

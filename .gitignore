@@ -8,3 +8,6 @@ node_modules/
 # Python
 __pycache__/
 *.pyc
+
+# Local video production files (the final cut is attached to GitHub Releases)
+video/

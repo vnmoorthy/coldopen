@@ -18,8 +18,8 @@ These are properties of the current build, not aspirations. A change that breaks
 | Safeguard | Where | What it does |
 |---|---|---|
 | Preview banner | `src/site/render.ts` | Sticky banner on every generated page: *"Unofficial concept preview made for {name} by Cold Open — not the official site."* with **Claim it · $49** and **Remove this preview**. |
-| No indexing | `src/site/render.ts` | `<meta name="robots" content="noindex,nofollow">` on every preview. |
-| One-click takedown | `/s/:id/remove`, `DELETE /api/businesses/:id` | Confirmation page with one button. Status becomes `removed`; the URL shows a removed page from then on; Mission Control drops the card. |
+| No indexing | `src/site/render.ts`, `src/index.ts` | `<meta name="robots" content="noindex,nofollow">` on every preview, plus an `X-Robots-Tag` header. |
+| Two-click takedown | `/s/:id/remove`, `DELETE /api/businesses/:id` | **Remove this preview**, then a confirmation page with one button. Status becomes `removed`; the URL returns 410 with a removed page from then on; the images are purged; Mission Control drops the card. |
 | Offerings honesty | `Brand.offeringsConfirmed` | `true` only when offerings came from the business's own site. Otherwise category-typical descriptions, **no prices**, and the section is labeled *"Preview — owner to confirm"*. |
 | Hours honesty | `SiteSpec.hoursText` | From OSM `opening_hours` when present, otherwise *"Hours — owner to confirm"*. |
 | Provenance | `Brand.sourceSignals` | The Archivist records exactly what it read ("website title", "theme-color #…", "OSM cuisine=…"). The story it writes must be factual; no invented history. |
@@ -37,7 +37,7 @@ These are properties of the current build, not aspirations. A change that breaks
 - **Never fabricate social proof.** No reviews, star ratings, review counts, "as seen in", awards, customer quotes or follower numbers. Not even as placeholders.
 - **Never invent prices.** If a price was not on the business's own site, it does not appear.
 - **Never invent facts.** No founding years, family histories, chef biographies, sourcing claims or certifications unless they were read from the business's own site.
-- **Generated imagery is illustrative.** Hero images are made by FLUX from a text prompt. Prompts must not request real people, the business's staff, its logo, or a depiction presented as the actual premises.
+- **Generated imagery is illustrative.** Hero images are generated from a text prompt (Workers AI FLUX, or OpenAI gpt-image-1 / dall-e-3 when a key is set); if none works, the business's own og:image is re-hosted. Prompts must not request real people, the business's staff, its logo, or a depiction presented as the actual premises.
 - **No sensitive categories.** Do not generate previews for medical, legal, financial, religious or political organizations, or for anything aimed at children. The Scout's category list should keep them out; if one slips through, remove it.
 
 ## Rules for data collection
@@ -81,10 +81,10 @@ We would rather list these than have you find them.
 
 - **The demo API has no authentication.** Anyone with the URL can scout, build, reset or remove. That is acceptable for a public hackathon demo on public data. A real deployment should put `/api/*` behind Cloudflare Access or similar, while keeping the owner-facing routes and the webhook public.
 - **Anyone with a preview link can remove it.** That is deliberate: takedown should fail safe, and an owner should never need to prove anything to make a preview go away.
-- **Unverified webhooks without a secret.** Without `STRIPE_WEBHOOK_SECRET`, webhook events cannot be signature-checked. Fine in test mode, not with real money.
+- **Unverified webhooks without a secret.** Without `STRIPE_WEBHOOK_SECRET`, webhook events cannot be signature-checked. If `STRIPE_SECRET_KEY` is set, HQ re-fetches the session from Stripe and trusts only that; with neither secret, a forged `checkout.session.completed` event is recorded as an unverified payment. Fine in test mode, not with real money.
 - **Models make mistakes.** The Critic and the deterministic checks catch a lot, but not everything. If a preview says something untrue about your business, remove it and, if you are willing, [open an issue](https://github.com/vnmoorthy/coldopen/issues) so we can fix the cause.
 
 ## Reporting a problem
 
 - **Owners:** use **Remove this preview** on the page. That is the fastest path and needs nothing from you.
-- **Everyone else:** open an issue at [github.com/vnmoorthy/coldopen/issues](https://github.com/vnmoorthy/coldopen/issues). For a security issue, please do not include exploit details in a public issue; open an issue asking for a private contact instead.
+- **Everyone else:** open an issue at [github.com/vnmoorthy/coldopen/issues](https://github.com/vnmoorthy/coldopen/issues). For a security issue, report it privately through a [GitHub security advisory](https://github.com/vnmoorthy/coldopen/security/advisories/new), as described in [SECURITY.md](../SECURITY.md#reporting-a-vulnerability).

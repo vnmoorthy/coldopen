@@ -1,541 +1,768 @@
-<div align="center">
+<a id="readme-top"></a>
 
-<a href="https://coldopen.vnarasingamoorthy.workers.dev"><img src="docs/hero.png" alt="Cold Open: the agency that does the work before the sale. Mission Control with a SoMa map, a live challenge split timer, a taste gate scoring v1 to v3, the agent channel, and a $49 Stripe checkout." width="100%"></a>
+<div align="center">
 
 <h1>Cold Open</h1>
 
-<p><b>The agency that does the work before the sale.</b><br>
-A crew of AI agents walks the block, reads each small business's real brand, builds it a website, refuses to ship until a critic scores it 85 or higher, and puts a $49 checkout next to it before anyone says hello.</p>
+<p><b>Point it at a city block. Get back a finished website for every independent business on it.</b><br>
+Seven agents on one Cloudflare Durable Object read each business's real website, write a new site, grade it with a code-computed rubric until it scores 85+, and attach a $49 Stripe (test-mode) checkout. About a minute and 4–6¢ per site on the live run.</p>
 
-<p>
-<a href="https://workers.cloudflare.com"><img alt="Cloudflare Workers" src="https://img.shields.io/badge/Cloudflare-Workers-F38020?style=flat-square&logo=cloudflare&logoColor=white"></a>
-<a href="https://developers.cloudflare.com/durable-objects/"><img alt="Durable Objects with SQLite" src="https://img.shields.io/badge/Durable_Objects-SQLite-F38020?style=flat-square&logo=cloudflare&logoColor=white"></a>
-<a href="https://developers.cloudflare.com/workers-ai/"><img alt="Workers AI: Llama 3.3 and FLUX" src="https://img.shields.io/badge/Workers_AI-Llama_3.3_%7C_FLUX-F38020?style=flat-square&logo=cloudflare&logoColor=white"></a>
-<a href="https://docs.stripe.com/payment-links"><img alt="Stripe Checkout and webhooks" src="https://img.shields.io/badge/Stripe-Checkout_%2B_Webhooks-635BFF?style=flat-square&logo=stripe&logoColor=white"></a>
-<a href="https://platform.openai.com/docs"><img alt="OpenAI gpt-5-mini and gpt-image-1" src="https://img.shields.io/badge/OpenAI-gpt--5--mini_%7C_gpt--image--1-412991?style=flat-square&logo=openai&logoColor=white"></a>
-<a href="https://docs.anthropic.com/"><img alt="Claude, optional" src="https://img.shields.io/badge/Claude-optional-D97757?style=flat-square&logo=anthropic&logoColor=white"></a>
-<a href="https://www.typescriptlang.org/"><img alt="TypeScript strict" src="https://img.shields.io/badge/TypeScript-strict-3178C6?style=flat-square&logo=typescript&logoColor=white"></a>
-<a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/License-MIT-3DDC84?style=flat-square"></a>
-</p>
+<img src="docs/media/demo.gif" alt="A 10-second cut of the real demo recording. The Live challenge dialog opens and Guitar Solo is picked from the list of nearby businesses. The split timer runs at 12x speed, labeled as sped up, as each agent finishes. Guitar Solo ships at 00:38.92 with a taste score of 88 and a QR code to its preview. Then a scroll through the Arsicault Bakery preview, built earlier the same day." width="720">
+
+<sub>Real footage, Sep 28, 2026. This run: Guitar Solo, 38.9 s, scored 88 on the first pass. The whole day: 24 businesses scouted, 16 sites built, about 1 min and 4–6¢ per site, under $1 total. Best build: Game Post, 38.5 s.</sub>
+
+<sub>The Critic sent Tres back twice (31 → 67 → 88) and Arsicault Bakery twice (49 → 68 → 96). The model answers yes/no checks; code computes the score.</sub>
 
 <p>
 <a href="https://coldopen.vnarasingamoorthy.workers.dev"><b>Live demo</b></a> ·
-<a href="#architecture">Architecture</a> ·
-<a href="docs/API.md">API</a> ·
-<a href="docs/INTEGRATIONS.md">Integrations</a> ·
-<a href="docs/ETHICS.md">Ethics</a> ·
-<a href="#quickstart">Quickstart</a> ·
-<a href="#faq">FAQ</a>
+<a href="#watch-the-3-minute-demo"><b>Watch the 3-minute demo</b></a> ·
+<a href="#documentation"><b>Docs</b></a> ·
+<a href="#deploy-your-own"><b>Deploy your own</b></a>
 </p>
 
-<sub>Built in one day at the Startup Speedrun Hackathon, Cloudflare HQ, 101 Townsend St, San Francisco. September 28, 2026.</sub>
+<p>
+<a href="https://github.com/vnmoorthy/coldopen/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/vnmoorthy/coldopen/actions/workflows/ci.yml/badge.svg"></a>
+<a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-3DDC84?style=flat-square"></a>
+<a href="#graceful-degradation"><img alt="API keys required: zero" src="https://img.shields.io/badge/API_keys_required-0-FF5B1F?style=flat-square"></a>
+</p>
+
+<sub>Built in one day at the Startup Speedrun Hackathon, Cloudflare HQ, 101 Townsend St, San Francisco.</sub>
 
 </div>
 
 <br>
 
-> [!NOTE]
-> Every site Cold Open generates is an **unofficial concept preview**. Each one carries a sticky banner that says so, is marked `noindex,nofollow`, and has a one-click **Remove this preview** button for the owner. Cold Open never invents reviews, ratings, awards or prices. See [docs/ETHICS.md](docs/ETHICS.md).
+> [!IMPORTANT]
+> Every preview is labeled "unofficial concept preview", is noindex, can be removed by the owner in two clicks with no account, and nothing is emailed automatically. Checkout is Stripe test mode ($0 revenue). [Ethics](#ethics-and-safety)
 
-## Contents
+<details>
+<summary><b>Table of contents</b></summary>
 
-- [Why this exists](#why-this-exists)
-- [What it does in 90 seconds](#what-it-does-in-90-seconds)
-- [Screenshots](#screenshots)
-- [Meet the agents](#meet-the-agents)
-- [Architecture](#architecture)
-- [The taste gate: a loop that improves its own work](#the-taste-gate-a-loop-that-improves-its-own-work)
-- [Graceful degradation](#graceful-degradation)
+- [What's worth borrowing from the code](#whats-worth-borrowing-from-the-code)
+- [Why this is different: build before you ask](#why-this-is-different-build-before-you-ask)
 - [Quickstart](#quickstart)
-- [Configuration](#configuration)
-- [API](#api)
-- [Data model](#data-model)
+  - [Watch it build](#watch-it-build) · [Deploy your own](#deploy-your-own) · [Run it locally](#run-it-locally)
+- [Watch the 3-minute demo](#watch-the-3-minute-demo)
+- [How it works](#how-it-works)
+- [Meet the agents](#meet-the-agents)
+- [The taste gate](#the-taste-gate)
+- [Gallery](#gallery)
+- [Mission Control](#mission-control)
 - [Ethics and safety](#ethics-and-safety)
-- [Business model](#business-model)
+- [Architecture](#architecture)
+- [Graceful degradation](#graceful-degradation)
+- [Sponsor integrations](#sponsor-integrations)
+- [API](#api)
+- [Configuration](#configuration)
+- [Testing](#testing)
+- [Documentation](#documentation)
 - [Roadmap](#roadmap)
 - [FAQ](#faq)
-- [Built at](#built-at)
-- [Contributing](#contributing) · [License](#license)
+- [Contributing](#contributing)
+- [Security](#security)
+- [Acknowledgements](#acknowledgements)
+- [License](#license)
 
-## Why this exists
+</details>
 
-Agencies sell small businesses a website by pitching first and building later. The owner has to imagine the result, trust a stranger, and pay a deposit. It is a hard sell, and the owners who most need a better web presence are the ones with the least time to take a sales call.
+## What's worth borrowing from the code
 
-Cold Open flips the order. The work happens first. By the time an owner hears from us, their site already exists, in their colors, with their words, at a link they can open on their phone. They can buy it in one tap or delete it in one tap.
+A compact reference for patterns that are hard to find in one small codebase:
 
-The market is not small. The U.S. has **36.2 million small businesses**, which account for almost 46 percent of private-sector employment ([SBA Office of Advocacy, June 2025](https://advocacy.sba.gov/2025/06/30/new-advocacy-report-shows-the-number-of-small-businesses-in-the-u-s-exceeds-36-million/)). In a 2021 survey, **28 percent of small businesses** said they had no website at all ([Top Design Firms via PR Newswire, Feb 2021](https://www.prnewswire.com/news-releases/28-of-small-businesses-dont-have-a-website-according-to-new-survey-data-301226897.html)).
+- **One Durable Object is the whole backend.** SQLite for state, WebSocket broadcast to every open Mission Control, durable alarms that resume builds interrupted by a restart. No external database. ([`src/hq.ts`](src/hq.ts))
+- **A generator-critic loop where code, not the model, computes the score.** The model answers yes/no checks; arithmetic turns them into a number, so the notes and the score always agree. ([`src/pipeline/critic.ts`](src/pipeline/critic.ts))
+- **One call site for every model.** `llmJSON()` walks Claude → OpenAI → Workers AI, parses JSON that arrives fenced, wrapped in prose, with trailing commas or cut off, retries once with a JSON-only nudge, and reports provider, model, cost and latency for every call. ([`src/llm.ts`](src/llm.ts))
+- **Each block build runs as its own request** to the same Durable Object, so every build gets a fresh subrequest budget. (`runIsolated()` in [`src/hq.ts`](src/hq.ts))
+- **Stripe without the SDK.** Webhook signatures are verified with WebCrypto HMAC-SHA256. The only runtime dependency in `package.json` is `agents`.
+- **A Mission Control with no build step.** Vanilla ES modules and a WebSocket with a polling fallback. The only outside services in the browser are Leaflet from unpkg, Esri basemap tiles, Google Fonts, and QR codes from api.qrserver.com.
 
-## What it does in 90 seconds
+## Why this is different: build before you ask
 
-Open [Mission Control](https://coldopen.vnarasingamoorthy.workers.dev) and follow one business from pin to payment.
+Agencies sell small businesses a website by pitching first and building later. The owner has to imagine the result, trust a stranger and book a call. The owners who most need a better site are the ones with the least time for that.
 
-1. **Scout the block** (`S`). The Scout queries OpenStreetMap's Overpass API for independent shops, cafés, restaurants and bars within 450 m of Cloudflare HQ, hedging across three public mirrors so a slow one never stalls the demo. If every mirror is down it falls back to a bundled OpenStreetMap snapshot of the same block. It skips chains (anything tagged with a `brand`, `brand:wikidata` or similar), dedupes by OSM id, and drops a pin on the map for each one.
-2. **Build** a card, or **Run the block** (`R`) to build every scouted business, three at a time.
-3. The **Archivist** fetches the business's own website with an 8 second timeout. It reads the title, meta description, `og:image`, `theme-color`, the hex colors the site uses most, its headings and up to 3,000 characters of visible text. It turns that into a brand kit: palette, a Google Fonts pairing, voice, vibe, a short factual story, and a list of `sourceSignals` naming exactly what it read. No website? It works from the name, category and OSM tags, and says so.
-4. The **Builder** composes a site spec: headline, about, three highlights, offerings, a call to action and opening hours, in one of three themes (editorial, bold or warm) chosen to match the brand's vibe.
-5. The **Critic** scores the draft from 0 to 100 and adds a deterministic penalty for stock marketing phrases. Under 85, its notes go back to the Builder and a new version is composed. Up to three versions, all kept, so you can watch the score climb from v1 to vN.
-6. The **Director** generates a hero image and stores it in KV. It tries FLUX.1 schnell, then FLUX.2 klein on Workers AI, then OpenAI gpt-image-1, then dall-e-3, then re-hosts the business's own `og:image`; if all of those fail the site ships with a typographic hero. With a Higgsfield key, it also starts an image-to-video launch ad in the background.
-7. The **Closer** writes a short, honest pitch (what we made, that it is unofficial, how to claim it, how to remove it) and attaches a Stripe checkout link tagged with the business id. With a test-mode `STRIPE_SECRET_KEY`, that is a dedicated $49 Payment Link created for this business.
-8. The site is live at `/s/:id`. When the owner taps **Claim it · $49**, Stripe Checkout takes the payment, then redirects to `/claimed` and sends a signed webhook. The Worker verifies the payment through the Checkout Session API and the webhook signature, HQ marks the business paid, Mission Control fires a toast, the revenue counter ticks up, and the **CFO** logs spend against revenue.
+Cold Open flips the order. By the time an owner hears from anyone, their site already exists: their colors, their words, their hours, at a link they can open on their phone. One button buys it. One button, and a confirmation, removes it.
 
-If the Durable Object restarts mid-build (a deploy, an eviction), HQ notices on the next start and resumes the interrupted builds on its own.
+| | The usual way | Cold Open |
+|---|---|---|
+| **First contact** | A pitch and a request for a call | A link to a finished site built from their own website |
+| **Proof of quality** | A portfolio of other people's sites | Their own site, which a Critic sent back until it scored 85 or better (or shipped flagged with its real score) |
+| **Cost of saying no** | An awkward call | Nothing. **Remove this preview** is on every page |
+| **Price** | A quote after discovery | $49, one Stripe Checkout |
+| **Who does the prep** | A person, before knowing if it's a yes | Seven agents; about 4 to 6¢ of model spend per site on the live run |
 
-Want to see it under pressure? Press **Live challenge** (`L`), type any business name or website, and a speedrun split timer tracks each agent from Scout to Closer, ending with **Open site** and a QR code you can hand to the person standing in front of you.
+## Quickstart
 
-## Screenshots
+Three ways in: watch a build on the live demo (about a minute), deploy your own (about ten minutes), or run it locally.
 
-<table>
-<tr>
-<td width="62%"><img src="docs/screenshots/mission-control.png" alt="Mission Control: map of SoMa with business pins, business cards with taste rings, and the live agent channel"></td>
-<td width="38%"><img src="docs/screenshots/mission-control-mobile.png" alt="Mission Control on a phone, columns stacked"></td>
-</tr>
-<tr>
-<td colspan="2" align="center"><sub><b>Mission Control.</b> Map, business grid and agent channel on desktop; stacked columns at 375 px.</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/site-1.png" alt="A generated preview site with the unofficial concept preview banner"></td>
-<td width="50%"><img src="docs/screenshots/site-2.png" alt="A second generated preview site in a different theme"></td>
-</tr>
-<tr>
-<td colspan="2" align="center"><sub><b>Generated previews.</b> Two businesses, two brand kits, two themes. Note the preview banner with Claim and Remove on every page.</sub></td>
-</tr>
-</table>
+### Watch it build
+
+1. Open the **[live demo](https://coldopen.vnarasingamoorthy.workers.dev)**. Every card with **Open site** is a real preview.
+2. Press <kbd>L</kbd> for **Live challenge**, type a business near 101 Townsend St (or any website), and watch the split timer follow each agent from Scout to Closer.
+3. When it ships, scan the QR code or press **Open site**.
+
+> [!NOTE]
+> The public demo is shared and unauthenticated. Please don't reset it or bulk-build; deploy your own (below) to experiment freely.
+
+### Deploy your own
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/vnmoorthy/coldopen)
+
+Cold Open needs **no API keys**: text runs on Workers AI and hero images on FLUX when no keys are set. The button copies this repo into your Git account, provisions the Durable Object, KV namespace and Workers AI binding, and deploys. On the deploy page:
+
+- **Set `PUBLIC_URL`** to your own `https://<worker>.<subdomain>.workers.dev`. It defaults to the public demo, and pitch links, Stripe redirects and the Brainbase review use it.
+- **Clear or replace `PAYMENT_LINK`.** The default is the public demo's Stripe *test* link, so claims would land in the demo's test account. With it empty, **Claim it** shows a "Checkout isn't wired up yet" page until you add your own.
+- **`HQ_LAT` / `HQ_LON`** pick the block to scout. Some copy still names San Francisco; see the [FAQ](#faq).
+- **Add keys afterwards** (the deploy page will not ask for them) under *Settings → Variables and Secrets*, or with `npx wrangler secret put OPENAI_API_KEY`.
+
+**Or with the CLI**, which is how the live demo is deployed. You need Node 22.12 or newer and a Cloudflare account:
+
+```bash
+git clone https://github.com/vnmoorthy/coldopen && cd coldopen && npm install
+npx wrangler login
+npx wrangler kv namespace create MEDIA   # paste the printed id into wrangler.jsonc → kv_namespaces[0].id
+npx wrangler deploy                      # prints https://coldopen.<your-subdomain>.workers.dev
+```
+
+Then set `PUBLIC_URL` in `wrangler.jsonc` to the printed URL, clear `PAYMENT_LINK` (or use your own Stripe test link) and deploy once more. Open the URL, press <kbd>S</kbd> to scout and <kbd>R</kbd> to run the block. [docs/DEPLOY.md](docs/DEPLOY.md) covers Stripe, secrets, custom domains, costs and troubleshooting.
+
+> [!WARNING]
+> Do not run `scripts/setup-secrets.sh` unchanged on your own deployment. It hard-codes the public demo's URL for its Stripe-webhook step. Answer **n** to that step, or edit `WORKER_URL` first ([details](docs/DEPLOY.md#with-the-helper-script)).
+
+**Or ask your coding agent.** Paste this into Claude Code or a similar tool:
+
+```text
+Clone https://github.com/vnmoorthy/coldopen and run npm install. Create a Cloudflare KV
+namespace named MEDIA with wrangler and put its id in wrangler.jsonc (kv_namespaces[0].id).
+Set vars.PAYMENT_LINK to "" and run npx wrangler deploy. Take the workers.dev URL it prints,
+set vars.PUBLIC_URL to it, deploy again, and confirm GET /api/health returns {"ok":true,...}.
+Do not run scripts/setup-secrets.sh.
+```
+
+### Run it locally
+
+```bash
+npm run dev          # wrangler dev on http://localhost:8787
+```
+
+Put secrets in `.dev.vars` (git-ignored), one `NAME=value` per line. The Workers AI binding calls Cloudflare's hosted models even in local dev, so `wrangler login` is required. To review the UI with no backend at all, open `http://localhost:8787/?mock=1`: an in-memory mock of the API and WebSocket with invented sample data and a "Mock data" badge the whole time.
+
+## Watch the 3-minute demo
+
+<!-- Maintainer: in the github.com editor, drag ColdOpen-demo.mp4 into this file and paste the resulting https://github.com/user-attachments/assets/... URL on its own line directly below this comment. GitHub renders a bare user-attachments URL as an inline player. Keep the poster below as the fallback. -->
+
+<p align="center">
+<a href="https://github.com/vnmoorthy/coldopen/releases/tag/v1.0.0"><img src="docs/media/demo-poster.png" alt="Poster for the 2 minute 58 second demo video. The frame shows the Live challenge for Guitar Solo finishing in 00:38.92, shipped with a taste score of 88 on one pass, with per-agent splits, the Critic's note and a QR code to the live preview." width="85%"></a>
+<br>
+<sub>2:58 walkthrough with voice-over. The video file is attached to the <a href="https://github.com/vnmoorthy/coldopen/releases/tag/v1.0.0">v1.0.0 release</a>.</sub>
+</p>
+
+## How it works
+
+One business, from pin to payment:
+
+```mermaid
+flowchart TD
+    S["Scout<br/>OpenStreetMap, 450 m around HQ"] --> A["Archivist<br/>reads the business's own website"]
+    A --> B["Builder<br/>writes SiteSpec vN"]
+    B --> C{"Critic<br/>score 85 or more?"}
+    C -- "no, and fewer than 3 versions:<br/>notes go back" --> B
+    C -- "yes, or 3 versions done:<br/>the best version ships" --> D["Director<br/>hero image into KV"]
+    D --> K["Closer<br/>pitch draft + $49 checkout link"]
+    K --> R(["Preview live at /s/:id"])
+    K -. "cost of the build" .-> F["CFO<br/>model spend vs revenue"]
+    R --> P["Owner taps Claim it<br/>Stripe Checkout, test mode"]
+    R --> X["Owner taps Remove this preview"]
+    P --> F
+    R -. "optional" .-> BB["Brainbase managed agent<br/>independent second opinion"]
+```
+
+1. **Scout.** Finds independent places within 450 m of HQ on OpenStreetMap, skipping chains; falls back to a bundled snapshot if Overpass is down. [More](docs/AGENTS.md#scout)
+2. **Queue.** **Run the block** (<kbd>R</kbd>) builds up to 8 of the nearest scouted businesses, 3 at a time; **Live challenge** (<kbd>L</kbd>) builds one by name. [More](docs/ARCHITECTURE.md#concurrency)
+3. **Archivist.** Reads the business's own homepage once and turns its colors, fonts, headings and text into a brand kit that lists exactly what it read. [More](docs/AGENTS.md#archivist)
+4. **Builder.** Writes the site's copy in one of three themes; opening hours come from OpenStreetMap, never from the model. [More](docs/AGENTS.md#builder)
+5. **Critic.** Answers 14 yes/no checks that code turns into a score; under 85, its notes go back to the Builder, up to 3 versions. [More](docs/AGENTS.md#critic)
+6. **Director.** Renders a hero image into KV (FLUX, then OpenAI images, then the business's own `og:image`); a Director failure never fails the build. [More](docs/AGENTS.md#director)
+7. **Closer.** Attaches a $49 checkout link (a dedicated Payment Link when a Stripe **test** key is set) and drafts a pitch that a person may send. [More](docs/AGENTS.md#closer)
+8. **Live.** The owner can **Claim it** (then `/claimed` and the webhook, signature-checked when `STRIPE_WEBHOOK_SECRET` is set, mark it paid) or **Remove this preview**. [More](docs/ARCHITECTURE.md#9-payment-attribution)
+
+The **CFO** logs model spend against revenue after every build and payment. With a Brainbase key, a managed agent also reviews each finished preview cold and posts a second opinion to the agent channel.
+
+Every step emits events tagged with the business id and broadcasts the updated business, so the map pin, the card, the drawer and the agent channel move together. If the Durable Object restarts mid-build (a deploy, an eviction), HQ marks the interrupted builds and resumes up to six of them on its own a couple of seconds later.
 
 ## Meet the agents
 
-Each agent posts to the live channel in Mission Control with its own color and monogram. "LLM" below means `llmJSON()` in `src/llm.ts`, which walks a provider chain: **Claude** when the key starts with `sk-ant-`, then **OpenAI** (`OPENAI_API_KEY`, or any non-Anthropic `sk-` key found in either secret; `OPENAI_MODEL`, default `gpt-5-mini`, with `gpt-4.1-mini` and `gpt-4o-mini` as fallbacks), then **Workers AI** Llama 3.3 70B, then Workers AI gpt-oss-120b. The first provider that returns valid JSON wins, and every call reports its provider, model, cost and latency. The live deployment currently runs on OpenAI `gpt-5-mini`.
+The agents are TypeScript modules, not autonomous processes: one Durable Object calls them in a fixed order, saves what they return and broadcasts it. Four of them call a language model through `llmJSON()`, the Director calls image models, and the Scout and CFO are plain code. The prompts ask models to behave; the **Enforced in code** column is what code guarantees regardless. The full lists are in [docs/AGENTS.md](docs/AGENTS.md).
 
-| | Agent | Job | Reads | Writes | Runs on |
-|:-:|---|---|---|---|---|
-| **Sc** | **Scout** | Finds independent businesses near HQ | `HQ_LAT`/`HQ_LON`, radius (450 m), limit (24) | `Business` rows with status `scouted` | OpenStreetMap Overpass: `maps.mail.ru`, `overpass-api.de`, `overpass.kumi.systems`, hedged in parallel (next mirror starts after 4.5 s of silence or a failure; first valid answer wins). If every mirror fails, a bundled OSM snapshot of the block (`src/pipeline/osm-snapshot.json`). Name lookups try Nominatim first, then Overpass |
-| **Ar** | **Archivist** | Extracts the real brand | The business's homepage HTML, OSM tags | `biz.brand` (`Brand`) | LLM, plus Taste Labs brand extraction merged in when `TASTE_API_KEY` is set |
-| **Bu** | **Builder** | Composes the site | `Brand`, the Critic's notes from the last pass | `biz.site` (`SiteSpec` vN) | LLM |
-| **Cr** | **Critic** | The taste gate | `SiteSpec`, `Brand` | `biz.scores[]` (`ScoreVersion`: score, notes, slop hits, provider) | LLM plus a deterministic phrase check; Taste Labs brand-adherence scoring when keyed |
-| **Di** | **Director** | Directs the hero visual and video | `Brand`, `SiteSpec`, the site's `og:image` | `biz.heroImage` (KV key), `biz.video` | Workers AI `flux-1-schnell` → `flux-2-klein-4b` → OpenAI `gpt-image-1` → `dall-e-3` → the business's own `og:image` re-hosted → typographic hero. Higgsfield image-to-video when keyed |
-| **Cl** | **Closer** | Writes the pitch, attaches checkout | `Business`, `Brand`, preview URL | `biz.pitch`, `biz.paymentUrl` | LLM; a dedicated Stripe Payment Link per business when `STRIPE_SECRET_KEY` is a test key, else the shared `PAYMENT_LINK` + `client_reference_id` |
-| **CF** | **CFO** | Keeps the books | Each call's estimated `costCents`, payments | `stats.spendCents`, `stats.revenueCents`, money events | Arithmetic. No model. |
+| Agent | Job | Enforced in code | Module |
+|---|---|---|---|
+| [Scout](docs/AGENTS.md#scout) | Finds independent businesses near HQ | Chains, vacant and closed places skipped | [`scout.ts`](src/pipeline/scout.ts) |
+| [Archivist](docs/AGENTS.md#archivist) | Extracts the real brand | Palette from the site's own colors; WCAG contrast; risky story claims dropped unless evidenced | [`brand.ts`](src/pipeline/brand.ts) |
+| [Builder](docs/AGENTS.md#builder) | Writes the site, then revises it | Hours from OSM only; no prices on unconfirmed menus | [`builder.ts`](src/pipeline/builder.ts) |
+| [Critic](docs/AGENTS.md#critic) | The taste gate | Score computed from rubric answers, minus 6 per banned phrase | [`critic.ts`](src/pipeline/critic.ts) |
+| [Director](docs/AGENTS.md#director) | Hero image, optional video | Only JPEG, PNG or WebP bytes accepted | [`director.ts`](src/pipeline/director.ts) |
+| [Closer](docs/AGENTS.md#closer) | Checkout link and pitch draft | The model writes only the subject and one sentence; nothing is sent | [`closer.ts`](src/pipeline/closer.ts) |
+| [CFO](docs/AGENTS.md#cfo) | Keeps the books | No model: sums each call's estimated cost and each payment | [`hq.ts`](src/hq.ts) |
+| [Brainbase second opinion](docs/AGENTS.md#brainbase-second-opinion) | Independent review of every finished site | Runs in the background on a time budget; never changes the shipped score | [`brainbase.ts`](src/integrations/brainbase.ts) |
 
-Models by provider: Claude `claude-sonnet-5` (`CLAUDE_MODEL`, Anthropic Messages API); OpenAI `gpt-5-mini` (`OPENAI_MODEL`, Chat Completions with `json_object`); Workers AI `@cf/meta/llama-3.3-70b-instruct-fp8-fast` then `@cf/openai/gpt-oss-120b`. Workers AI has a quota circuit breaker: when Cloudflare returns error 4006 (daily allocation used up), every Workers AI call, text and image, is skipped until the next probe or the 00:00 UTC reset, and `GET /api/config` reports `integrations.workersAIQuotaExhausted: true`.
+Full inputs, outputs, prompts, events and extension points for each one: **[docs/AGENTS.md](docs/AGENTS.md)**.
+
+## The taste gate
+
+Most generated sites fail the same way: a headline that could belong to any business, stock phrases like "nestled in the heart of", and confident claims nobody checked. The Critic exists to catch that before a person ever sees it.
+
+The model never writes the number. It answers 14 weighted yes/no checks (brand fidelity 30, specificity 25, clarity 20, voice 15, call to action 10) and writes a fix for each failed one. Code does the rest ([`critic.ts#L418`](https://github.com/vnmoorthy/coldopen/blob/v1.0.0/src/pipeline/critic.ts#L418)):
+
+```ts
+const score = Math.max(0, Math.min(100, Math.round(rubric - 6 * hits.length - structural)));
+```
+
+The loop itself, abridged from [`src/hq.ts`](https://github.com/vnmoorthy/coldopen/blob/v1.0.0/src/hq.ts#L1240-L1316):
+
+```ts
+const TASTE_BAR = 85;
+const MAX_VERSIONS = 3;
+
+for (let v = 1; v <= MAX_VERSIONS; v++) {
+  const built = await withTimeout(
+    composeSite(this.env, biz, brand, prev, feedback), STAGE_TIMEOUT_MS.builder, "Builder");
+  // …save v, then score it
+  const crit = await withTimeout(
+    critique(this.env, biz, brand, spec), STAGE_TIMEOUT_MS.critic, "Critic");
+  // …clamp the score, keep every version in biz.scores
+  const passed = sv.score >= TASTE_BAR;
+  if (!best || sv.score > best.score.score) best = { spec, score: sv };
+  if (passed) break;
+  prev = spec;
+  feedback = [
+    ...sv.notes,
+    ...sv.slopHits.map((h) =>
+      `Remove the banned/generic phrase "${h}" and say something specific to ${biz.name} instead.`),
+  ];
+}
+```
+
+After the loop, the best version ships, not the last. If a revision scored lower, HQ puts the better draft back and says so in the channel. Every version stays in `biz.scores` with its score, notes, banned-phrase hits, provider and timestamp, and the drawer in Mission Control shows the whole history. **Taste-passed** in the stats ribbon counts only built sites whose *shipped* version scored 85 or more.
+
+**What the loop did on the live run** (Sep 28, 2026, OpenAI `gpt-5-mini`). These are the recorded score histories, not a benchmark:
+
+| Business | v1 | v2 | v3 | Shipped |
+|---|:-:|:-:|:-:|---|
+| Tres | 31 | 67 | **88** | v3 |
+| Arsicault Bakery | 49 | 68 | **96** | v3 |
+| 58 Social | 44 | **88** | | v2 |
+| Bravado | 58 | **96** | | v2 |
+| Zaika Indian Cuisine | 63 | **96** | | v2 |
+| Momo's | 64 | **96** | | v2 |
+| El Porteño | 65 | **96** | | v2, after a Builder fix |
+| Victory Hall & Parlor | 72 | **100** | | v2 |
+| Guitar Solo | **88** | | | v1 · 38.9 s Live challenge |
+| Game Post | **96** | | | v1 · 38.5 s best build |
+
+<details>
+<summary><b>The live run, by the numbers</b></summary>
+
+<br>
+
+| Measure | Result |
+|---|---|
+| Businesses scouted | 24 |
+| Sites built | 16 |
+| Best build, end to end | 38.5 s (Game Post, 96 on the first pass) |
+| Average build | about 1 minute |
+| Estimated model spend | about 4 to 6¢ per site, under $1 for the whole board |
+| Brainbase second opinion | Underdogs Cantina scored 76, in about 146 s |
+| Revenue | $0 (Stripe test mode) |
+
+</details>
+
+The rubric, all 56 banned phrases, the unsupported-claims fact check, tuning advice and the known limitations are in **[docs/TASTE-GATE.md](docs/TASTE-GATE.md)**.
+
+<p align="right"><sub><a href="#readme-top">↑ Back to top</a></sub></p>
+
+## Gallery
+
+Seven previews from the live run, each shown with the Critic score of the version that shipped.
+
+<p align="center"><img src="docs/gallery/grid.png" alt="A grid of seven generated previews with their Critic scores: Arsicault Bakery 96, Momo's 96, Tres 88, Zaika Indian Cuisine 96, Game Post 96, Victory Hall and Parlor 100 and Bravado 96, plus a note that every preview carries an unofficial-preview banner with Claim it and Remove this preview." width="100%"></p>
+
+**Score histories** (each name opens the full-size preview): [Tres](docs/gallery/tres.png) 31 → 67 → 88 · [Arsicault Bakery](docs/gallery/arsicault-bakery.png) 49 → 68 → 96 · [Bravado](docs/gallery/bravado.png) 58 → 96 · [Zaika Indian Cuisine](docs/gallery/zaika-indian-cuisine.png) 63 → 96 · [Momo's](docs/gallery/momos.png) 64 → 96 · [Victory Hall & Parlor](docs/gallery/victory-hall-and-parlor.png) 72 → 100 · [Game Post](docs/gallery/game-post.png) 96, first pass, 38.5 s
+
+<img src="docs/media/site-scroll.gif" alt="Scrolling the Arsicault Bakery preview from the hero down to the footer." width="100%">
+
+<sub><b>Arsicault Bakery</b>, 49 → 68 → 96, scrolled top to bottom.</sub>
+
+**Every preview has the same honest anatomy** ([`render.ts`](src/site/render.ts)):
+
+- A sticky banner: *"Unofficial concept preview made for {name} by Cold Open — not the official site"*, with **Claim it · $49** and **Remove this preview**
+- A hero captioned *"Illustrative image · AI-generated for this concept"*
+- Offerings read from their site, or labeled *"Preview — owner to confirm"*, never with invented prices
+- Hours from OpenStreetMap, directions, an OSM map, and a live "Open now" line for U.S. West coordinates
+- A *"How this preview was made"* panel listing what was read
+
+## Mission Control
+
+<p align="center"><img src="docs/screenshots/mission-control.png" alt="Mission Control on desktop: integration pills, the stats ribbon, a map of the block with status-colored pins, the crew, business cards with taste rings, and the live agent channel." width="100%"></p>
+
+<table>
+<tr>
+<td width="68%" valign="top"><img src="docs/screenshots/live-challenge.png" alt="The Live challenge speedrun view for Game Post: a large timer, per-agent splits, the taste-gate bar, the Critic's note and a QR code to the live preview." width="100%"></td>
+<td width="32%" valign="top"><img src="docs/screenshots/mission-control-mobile.png" alt="Mission Control on a phone: the header buttons, integration pills, the stats ribbon as a two-column grid, and the first business card." width="100%"></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><sub><b>Top:</b> the board. <b>Left:</b> a Live challenge. <b>Right:</b> the phone layout.</sub></td>
+</tr>
+</table>
+
+- **The map.** Leaflet on Esri basemap tiles, with the HQ marker, the scout radius and a pin per business, colored by status.
+- **The block.** A card per business with a taste ring, filters by status (Scouted, In flight, Ready, Contacted, Replied, Paid, Error) and search.
+- **The agent channel.** Every event from every agent, live over WebSocket, filterable by agent.
+- **The stats ribbon.** Scouted, Built, Taste-passed, Contacted, Replied, Paid, Revenue and Spend, with average and best build time.
+- **Integration pills.** Claude, Workers AI, OpenAI, Brainbase, Stripe, Slack, Higgsfield and Taste Labs light up from `GET /api/config`.
+- **The drawer.** A business's full score history v1 to vN with the Critic's notes, the pitch with **Copy pitch** and a `mailto:` link, **Mark contacted** / **Mark replied**, Rebuild, and video.
+- **Live challenge.** Type a business or website; six splits run live, and the result ends with **Open site** and a QR code you can hand to the person in front of you. The QR image is drawn by api.qrserver.com, so the preview URL is sent there.
+- **Light and dark.** Follows the system setting; <kbd>T</kbd> cycles System → Light → Dark.
+- **Resilience.** If the WebSocket drops, the UI polls `/api/state` every 5 s until it reconnects.
+
+**Keyboard shortcuts** (press <kbd>?</kbd> in the app for the same list):
+
+| Key | Action |
+|:-:|---|
+| <kbd>L</kbd> | Open the Live challenge |
+| <kbd>S</kbd> | Scout the block |
+| <kbd>R</kbd> | Run the block (asks first, because builds call paid models) |
+| <kbd>/</kbd> | Search the block |
+| <kbd>T</kbd> | Theme: System → Light → Dark |
+| <kbd>Esc</kbd> | Close whatever is open |
+| <kbd>?</kbd> | Show the shortcuts |
+
+## Ethics and safety
+
+Cold Open builds things for real businesses that did not ask for them. That only works if it is scrupulously honest. The full policy is **[docs/ETHICS.md](docs/ETHICS.md)**.
+
+**What the code enforces today**
+
+- **Labeled.** Every preview carries a banner that stays on screen: *"Unofficial concept preview made for {name} by Cold Open — not the official site."* The footer adds that it is not affiliated with or endorsed by the business.
+- **Not indexed.** `<meta name="robots" content="noindex,nofollow">` plus an `X-Robots-Tag` header on every preview.
+- **Removable in two clicks.** **Remove this preview** is on every page, followed by one confirmation. The link then returns `410`, the images are purged, and the Scout never adds that business again. No account, email or reason required.
+- **Nothing invented.** Previews have no review, rating or testimonial sections. Prices appear only if the same amount was on the business's own site. Unconfirmed offerings say *"Preview — owner to confirm"*; unknown hours say *"Hours — owner to confirm"*. The Critic's fact check penalizes claims such as awards, "family-owned" or delivery that the evidence does not support, and revisions cut them.
+- **Honest pitch, sent by a person.** The model writes only a subject and one descriptive sentence. The rest is fixed text: we built it before asking, the preview link, the price, and *"Reply "remove" and we delete it the same day."* Nothing is emailed automatically.
+- **Independents only.** Brand-tagged places and 127 known chains are skipped.
+- **Test-mode money.** Per-business Payment Links are created only with a Stripe test key.
+
+**Known gaps, stated plainly** (each is tracked in [ROADMAP.md](ROADMAP.md) or [SECURITY.md](SECURITY.md)):
+
+- The Archivist does not check `robots.txt` yet, and fetches homepages with a desktop-browser User-Agent. Overpass and Nominatim requests identify as `ColdOpen/1.0`.
+- The drafted pitch does not repeat the word "unofficial"; the preview it links to does.
+- Unverified claims (no Stripe keys) still count toward the **Paid** and **Revenue** stats, labeled as unverified.
+- `POST /api/reset` also erases the list of owners who asked to be removed.
+- The preview's *"How this preview was made"* panel prints "Cleared Cold Open's taste gate at N/100" using the last version's score, even when an earlier version shipped or the build shipped flagged under 85.
 
 ## Architecture
 
-<p align="center"><img src="docs/architecture.svg" alt="Cold Open system architecture: browser clients talk to one Cloudflare Worker, which forwards the API and WebSocket to the HQ Durable Object. HQ runs the seven-agent pipeline against Workers AI, KV, Claude, OpenAI, OpenStreetMap, business websites, Higgsfield, Taste Labs and Slack. The money path runs from the Closer's Payment Link through Stripe Checkout back to /claimed and the signed webhook." width="100%"></p>
+<p align="center"><img src="docs/architecture.svg" alt="Cold Open system architecture: browser clients talk to one Cloudflare Worker, which forwards the API and WebSocket to the HQ Durable Object. HQ runs the agent pipeline against Workers AI, KV, Claude, OpenAI, OpenStreetMap, business websites and the optional integrations. The money path runs from the Closer's Payment Link through Stripe Checkout back to /claimed and the webhook." width="100%"></p>
 
 The whole product is **one Worker and one Durable Object**.
 
-- **Worker** (`src/index.ts`) serves the static Mission Control app from `public/` through the `ASSETS` binding, and runs first on `/api/*`, `/agents/*`, `/s/*`, `/img/*` and `/claimed`. It forwards the JSON API and the WebSocket to the HQ agent, renders preview sites, streams hero images out of KV, and verifies Stripe.
-- **HQ** (`src/hq.ts`) is a Durable Object built on the [Cloudflare Agents SDK](https://developers.cloudflare.com/agents/). One instance, `main`, owns all state in its SQLite storage (tables `businesses` and `events`), runs the pipeline in the background with `ctx.waitUntil`, and broadcasts every change to every connected Mission Control over WebSocket. A single strongly consistent coordinator means no races between agents and no external database. On start it looks for businesses left in a transient status (`extracting`, `building`, `critiquing`, `directing`) and resumes those builds automatically.
-- **Pipeline** (`src/pipeline/*`) is plain TypeScript, one module per agent. Model calls go through `src/llm.ts`, which walks Claude → OpenAI → Workers AI and reports provider, model, cost and latency for every call.
-- **Integrations** (`src/integrations/*`) are each optional and each fail soft: OpenAI (text and images), Stripe (WebCrypto HMAC, no SDK), Slack, Higgsfield, Taste Labs.
+- **Worker** ([`src/index.ts`](src/index.ts)) serves Mission Control from `public/` as static assets and runs first on `/api/*`, `/agents/*`, `/s/*`, `/img/*` and `/claimed`. It forwards the API and the WebSocket to HQ, renders preview sites, streams hero images from KV, and strips the internal header from every public request.
+- **HQ** ([`src/hq.ts`](src/hq.ts)) is a Durable Object on the [Cloudflare Agents SDK](https://developers.cloudflare.com/agents/). One instance, `main`, owns all state in SQLite (tables `co_businesses` and `co_events`), runs pipelines in the background, and broadcasts every change over WebSocket. One strongly consistent coordinator means agents never race each other. Epochs and run tokens let a reset or a removal cancel in-flight work cleanly.
+- **Pipeline** ([`src/pipeline/`](src/pipeline)) is plain TypeScript, one module per agent. Every stage has its own timeout (Archivist 90 s, Builder 120 s, Critic 90 s, Director 120 s, Closer 90 s).
+- **Integrations** ([`src/integrations/`](src/integrations)) are each optional and each fail soft.
+
+The deep dive (routing, lifecycle and crash recovery, the SQLite schema and KV layout, the WebSocket protocol with examples, the LLM and image chains, cost accounting, payment attribution, failure modes and every limit) is in **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
 <details>
 <summary><b>File map</b></summary>
 
 ```
 src/
-  index.ts              Worker router
-  hq.ts                 HQ agent: state, events, pipeline orchestration, WebSocket broadcast
-  llm.ts                llmJSON(): Claude -> OpenAI -> Workers AI, plus the Workers AI quota breaker
-  types.ts              shared types (Business, Brand, SiteSpec, ScoreVersion, AgentEvent, Stats, Snapshot, Env)
+  index.ts              Worker router: /api, /agents, /s/:id, /claimed, /img
+  hq.ts                 HQ Durable Object: state, events, pipeline orchestration, WebSocket broadcast
+  llm.ts                llmJSON(): Claude -> OpenAI -> Workers AI, loose JSON parsing, cost ledger, quota breaker
+  types.ts              Business, Brand, SiteSpec, ScoreVersion, AgentEvent, Stats, Snapshot, Env
   pipeline/
-    scout.ts            OSM Overpass scouting (hedged mirrors), Nominatim name lookup, chain filter, dedupe
-    osm-snapshot.json   bundled OSM fallback: 87 elements within 600 m of 101 Townsend (ODbL)
-    brand.ts            brand extraction from the business's own site
-    builder.ts          SiteSpec composition
-    critic.ts           taste gate + deterministic slop penalty
-    director.ts         hero image (FLUX -> OpenAI images -> og:image -> KV), video (Higgsfield)
-    closer.ts           pitch + checkout link
+    scout.ts            Overpass sweep (hedged mirrors), Nominatim name lookup, chain filter, dedupe
+    osm-snapshot.json   offline fallback: 87 OSM elements within 600 m of 101 Townsend St (ODbL)
+    brand.ts            Archivist: reads the business's own site, builds the brand kit
+    builder.ts          Builder: SiteSpec composition, themes, hours, CTA rules
+    critic.ts           Critic: rubric, banned phrases, structural checks, unsupported-claims check
+    director.ts         Director: hero image chain into KV
+    closer.ts           Closer: checkout link and pitch draft
   integrations/
     openai.ts           key detection by prefix, Chat Completions with model fallbacks
-    stripe.ts           webhook verify, session verify, per-business Payment Links
-    slack.ts            incoming webhook mirror
-    higgsfield.ts       startVideo() / pollVideo()
-    taste.ts            extractBrand() / scoreAgainstBrand()
+    stripe.ts           webhook verification, session lookup, per-business Payment Links
+    brainbase.ts        second-opinion review via POST /v2/threads
+    higgsfield.ts       image-to-video: startVideo(), pollVideo()
+    taste.ts            Taste Labs Brand API: tasteExtractBrand() and friends
+    slack.ts            incoming-webhook mirror
   site/
-    render.ts           renderSite(), renderClaimed(), renderRemoved(), renderNotFound()
-public/                 Mission Control (vanilla ES modules, no build step, Leaflet)
-scripts/setup-secrets.sh  optional secrets, piped straight into wrangler
+    render.ts           renderSite() in three themes, plus claimed, removed and not-found pages
+public/                 Mission Control: vanilla ES modules, no build step (mock.js powers ?mock=1)
+test/                   Vitest suite, see Testing
+docs/                   architecture, agents, taste gate, deploy, API, integrations, ethics, FAQ
 ```
 
 </details>
 
-### One business, end to end
+<details>
+<summary><b>Data model</b> (abridged from <code>src/types.ts</code>)</summary>
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Op as Operator
-    participant MC as Mission Control
-    participant W as Worker
-    participant HQ as HQ Durable Object
-    participant OSM as OSM Overpass
-    participant Web as Business website
-    participant LLM as Claude, OpenAI or Workers AI
-    participant AI as Image model (FLUX, gpt-image-1, dall-e-3, og:image)
-    participant KV as KV MEDIA
-    actor Owner as Business owner
-    participant S as Stripe
-
-    Op->>MC: Scout the block
-    MC->>W: POST /api/scout {radius: 450}
-    W->>HQ: forward
-    HQ->>OSM: nodes within 450 m (hedged mirrors, snapshot fallback)
-    OSM-->>HQ: places + tags
-    HQ-->>MC: ws business (status scouted), one per place
-    Op->>MC: Build
-    MC->>W: POST /api/businesses/:id/build
-    W->>HQ: forward
-    HQ-->>MC: 202 accepted, pipeline runs in background
-    HQ->>Web: GET homepage (8 s timeout)
-    Web-->>HQ: HTML
-    HQ->>LLM: extract Brand
-    HQ-->>MC: ws event (Archivist)
-    loop until score >= 85, at most 3 versions
-        HQ->>LLM: composeSite(brand, notes)
-        HQ->>LLM: critique(spec)
-        HQ-->>MC: ws business (scores v1..vN)
-    end
-    HQ->>AI: hero prompt
-    AI-->>HQ: image bytes
-    HQ->>KV: put img:{id}:{n}
-    HQ->>LLM: writePitch
-    HQ-->>MC: ws business (status ready, pitch, paymentUrl)
-    Owner->>W: GET /s/:id
-    W-->>Owner: preview site (banner, noindex)
-    Owner->>W: GET /s/:id/claim
-    W-->>Owner: 302 to Stripe Payment Link
-    Owner->>S: pays $49
-    S->>W: POST /api/stripe/webhook (Stripe-Signature)
-    W->>HQ: markPaid(id)
-    S-->>Owner: redirect /claimed?session_id=...
-    Owner->>W: GET /claimed
-    W->>S: retrieve session (when STRIPE_SECRET_KEY)
-    W->>HQ: markPaid(id)
-    HQ-->>MC: ws event kind money, toast + revenue
-```
-
-### Pipeline and status lifecycle
-
-```mermaid
-flowchart LR
-    classDef agent fill:#121214,stroke:#FF5B1F,color:#F4F1EA
-    classDef gate fill:#121214,stroke:#FFC247,color:#F4F1EA
-    classDef money fill:#0f1a14,stroke:#3DDC84,color:#F4F1EA
-    classDef end1 fill:#1a1010,stroke:#FF4D4D,color:#F4F1EA
-
-    S["Scout<br/>status: scouted"]:::agent --> A["Archivist<br/>status: extracting"]:::agent
-    A --> B["Builder<br/>status: building<br/>SiteSpec vN"]:::agent
-    B --> C{"Critic<br/>status: critiquing<br/>score >= 85?"}:::gate
-    C -- "no, and N < 3<br/>notes fed back" --> B
-    C -- "yes, or N = 3" --> D["Director<br/>status: directing<br/>hero to KV: FLUX, OpenAI, og:image"]:::agent
-    D -. "if Higgsfield key" .-> V["video render<br/>non-blocking"]
-    D --> CL["Closer<br/>pitch + checkout link"]:::agent
-    CL --> R["ready<br/>live at /s/:id"]:::money
-    R --> CT["contacted"] --> RP["replied"] --> P["paid"]:::money
-    R --> P
-    R -. "owner clicks Remove" .-> X["removed"]:::end1
-    A & B & C & D -. "any failure" .-> E["error<br/>biz.error set, DO keeps running"]:::end1
-```
-
-Each step emits `AgentEvent`s tagged with the business id and broadcasts the updated `Business`, so the map pin, the card, the drawer and the channel all move together. A build caught in one of the transient statuses when the Durable Object restarts is picked up again automatically on the next start (up to six at once), with a channel notice saying so.
-
-## The taste gate: a loop that improves its own work
-
-Most generated sites fail in the same ways: a headline that could belong to any business, phrases like "nestled in the heart of", invented claims. The Critic exists to catch that before a human ever sees it.
-
-1. **Score.** The Critic reads the `SiteSpec` against the `Brand` and returns a score from 0 to 100 plus specific, actionable notes ("the headline doesn't use anything from their own site").
-2. **Penalize slop, deterministically.** Separately from the model, a fixed list of stock marketing phrases is matched against the copy. Every hit is recorded in `slopHits` and costs points. This part cannot be talked out of its opinion.
-3. **Gate.** 85 or higher passes. Below that, the notes go back into `composeSite()` and the Builder writes version N+1 with the feedback in context.
-4. **Stop.** At most three versions per build, so cost and latency are bounded. If v3 still falls short, the pipeline continues with the real score on display and the business does not count toward **Taste-passed**.
-5. **Keep everything.** Every version lands in `biz.scores` with its score, notes, slop hits, provider and timestamp. The drawer in Mission Control shows the full history, so you can see exactly what the Critic objected to and how the Builder responded.
-
-The **Taste-passed** number in the stats ribbon counts businesses whose final score is 85 or higher. Nothing else feeds it.
-
-What that looks like in practice, from the live demo on Sep 28, 2026: Momo's went 64 → 96; Nirvana Soul scored 88 on its first pass; El Porteño stayed at 78 / 72 / 72 after three passes and shipped flagged, below the bar, with its real score on display.
-
-## Graceful degradation
-
-Cold Open runs end to end with **only Workers AI, KV and the Durable Object**. No external keys. Each optional secret upgrades one part and none of them are required.
-
-| Capability | Zero keys | Upgrade | Secret |
-|---|---|---|---|
-| Scouting | OpenStreetMap Overpass, three mirrors hedged in parallel. If every mirror fails: a bundled OSM snapshot (87 elements within 600 m of 101 Townsend, ODbL) | | |
-| Name lookup (Live challenge) | Nominatim, then Overpass | | |
-| Brain for Archivist, Builder, Critic, Closer | Workers AI: Llama 3.3 70B fp8-fast, falling back to gpt-oss-120b | OpenAI (`gpt-5-mini` by default, `gpt-4.1-mini` / `gpt-4o-mini` fallbacks), Workers AI behind it. This is what the live demo runs on | `OPENAI_API_KEY` (or a non-Anthropic `sk-` key in `ANTHROPIC_API_KEY`) |
-| | | Claude (`claude-sonnet-5`) ahead of OpenAI and Workers AI | `ANTHROPIC_API_KEY` starting `sk-ant-` |
-| Brand extraction | Own-site HTML parsing plus LLM | Taste Labs design-system extraction merged in (best effort, never fatal) | `TASTE_API_KEY` |
-| Critic | LLM score plus deterministic slop check | Taste Labs brand-adherence score | `TASTE_API_KEY` |
-| Hero image | Workers AI FLUX.1 schnell → FLUX.2 klein to KV; else the business's own `og:image` re-hosted; else a typographic hero. While the Workers AI quota breaker is open (error 4006), Workers AI is skipped | OpenAI `gpt-image-1` → `dall-e-3` slot in after Workers AI and before `og:image` | `OPENAI_API_KEY` |
-| Video ad | Attach any externally rendered ad URL in the drawer | Higgsfield image-to-video, polled in background | `HIGGSFIELD_API_KEY` (+ `HIGGSFIELD_API_SECRET`) |
-| Checkout link | Shared Payment Link + `client_reference_id` | A dedicated $49 Payment Link per business (test-mode keys only) | `STRIPE_SECRET_KEY` |
-| Payment on `/claimed` | Marked paid with `paymentVerified: false` | Checkout Session retrieved from Stripe: must be paid and match `client_reference_id` | `STRIPE_SECRET_KEY` |
-| Webhook | Not signature-checked. Fine for a demo, not for real money | HMAC-SHA256 over `t.payload`, 5 minute tolerance, timing-safe compare; bad signatures rejected | `STRIPE_WEBHOOK_SECRET` |
-| Team visibility | Agent channel in Mission Control | Mirrored into a Slack channel | `SLACK_WEBHOOK_URL` |
-| Build resilience | Builds interrupted by a Durable Object restart resume automatically on the next start | | |
-
-`GET /api/config` reports which integrations are live (`integrations.claude`, `openai`, `workersAI`, `workersAIQuotaExhausted`, `stripeApi`, `stripeWebhook`, `slack`, `higgsfield`, `taste`, `brainbase`) and which LLM is at the front of the chain (`llm`), and Mission Control lights up a pill for each. Setup details, API facts and failure behavior for every integration are in [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
-
-## Quickstart
-
-You need Node 20+, a Cloudflare account and about five minutes.
-
-```bash
-git clone https://github.com/vnmoorthy/coldopen.git
-cd coldopen
-npm i
-
-# 1. Log in and create the media namespace
-npx wrangler login
-npx wrangler kv namespace create MEDIA
-#    paste the printed id into wrangler.jsonc -> kv_namespaces[0].id
-
-# 2. Point the vars at your deployment (wrangler.jsonc -> vars)
-#    PUBLIC_URL    https://coldopen.<your-subdomain>.workers.dev
-#    PAYMENT_LINK  your Stripe test Payment Link (optional; see below)
-#    HQ_LAT/HQ_LON the block you want to scout
-
-# 3. Ship it
-npx wrangler deploy
-
-# 4. Optional: add keys. Every prompt can be skipped.
-bash scripts/setup-secrets.sh
-#    The script asks for an Anthropic key. An OpenAI key can go in directly:
-npx wrangler secret put OPENAI_API_KEY
-```
-
-Open your `workers.dev` URL, press **Scout the block**, then **Run the block**.
-
-**Stripe setup.** Create a test-mode Payment Link for a $49 product and set its after-payment redirect to `https://<your-worker>/claimed?session_id={CHECKOUT_SESSION_ID}`. Put the link in `PAYMENT_LINK`. If you have the Stripe CLI logged in, `setup-secrets.sh` can read your test key and register the webhook endpoint for you, storing the signing secret without printing it. Pay with Stripe's test card `4242 4242 4242 4242`, any future date, any CVC.
-
-**Local development.** `npm run dev` starts `wrangler dev`. Put secrets in `.dev.vars` (already git-ignored). The Workers AI binding calls Cloudflare's hosted models even in local dev, so it needs `wrangler login` and uses your account. `npm run typecheck` runs `tsc --noEmit`.
-
-To scout somewhere other than SoMa, change `HQ_LAT` and `HQ_LON` and redeploy.
-
-## Configuration
-
-**Bindings** (in `wrangler.jsonc`)
-
-| Binding | Type | Purpose |
-|---|---|---|
-| `HQ` | Durable Object (class `HQ`, SQLite, migration `v1`) | All state, the pipeline, WebSocket broadcast |
-| `MEDIA` | KV namespace | Hero images, key `img:{id}:{n}` |
-| `AI` | Workers AI | Zero-key LLM (Llama 3.3 70B, gpt-oss-120b) and the first two hero-image attempts (FLUX) |
-| `ASSETS` | Static assets from `./public` | Mission Control |
-
-**Vars**
-
-| Var | Default | Purpose |
-|---|---|---|
-| `PUBLIC_URL` | `https://coldopen.vnarasingamoorthy.workers.dev` | Absolute links in pitches, QR codes and Stripe redirects |
-| `PAYMENT_LINK` | Stripe test Payment Link | Shared checkout; `?client_reference_id=<id>` is appended per business |
-| `CLAUDE_MODEL` | `claude-sonnet-5` | Model used when `ANTHROPIC_API_KEY` starts with `sk-ant-` |
-| `OPENAI_MODEL` | `gpt-5-mini` (not set in `wrangler.jsonc`; read from the environment) | Model used when an OpenAI key is present. Unknown or unsupported models fall through to `gpt-5-mini`, `gpt-4.1-mini`, `gpt-4o-mini` |
-| `HQ_LAT` | `37.7786` | Scout center latitude (101 Townsend St) |
-| `HQ_LON` | `-122.3893` | Scout center longitude |
-
-**Secrets** (all optional; set with `npx wrangler secret put NAME` or `scripts/setup-secrets.sh`)
-
-| Secret | Unlocks |
-|---|---|
-| `ANTHROPIC_API_KEY` | Claude as the brain of every agent, when the key starts with `sk-ant-`. A plain `sk-` key stored here is treated as an OpenAI key |
-| `OPENAI_API_KEY` | OpenAI as the brain (`gpt-5-mini`), plus `gpt-image-1` and `dall-e-3` as hero-image fallbacks. The live demo runs on this |
-| `STRIPE_SECRET_KEY` | Verified payments on `/claimed` through the Checkout Session API; a dedicated Payment Link per business (test keys only) |
-| `STRIPE_WEBHOOK_SECRET` | Signature-verified webhooks |
-| `SLACK_WEBHOOK_URL` | Agent channel mirrored to Slack |
-| `HIGGSFIELD_API_KEY`, `HIGGSFIELD_API_SECRET` | Image-to-video launch ads |
-| `TASTE_API_KEY` | Taste Labs brand extraction and scoring |
-
-## API
-
-All endpoints are JSON. The Worker forwards `/api/*` to the HQ agent instance `main`. Full request and response shapes, error codes and `curl` examples are in **[docs/API.md](docs/API.md)**.
-
-| Method | Path | What it does |
-|---|---|---|
-| `GET` | `/api/state` | Full `Snapshot`: businesses, last 200 events, stats |
-| `GET` | `/api/config` | Public URL, payment link, HQ location, which integrations are live, active LLM, Stripe mode, taste bar |
-| `POST` | `/api/scout` | Scout the block `{radius?: 450, limit?: 24}` |
-| `POST` | `/api/businesses` | Add one business by name (and optional website, category, address) |
-| `POST` | `/api/businesses/:id/build` | Run the pipeline in the background (`202`) |
-| `POST` | `/api/run-block` | Build every scouted business, concurrency 3 `{limit?: 8}` (`202`) |
-| `POST` | `/api/businesses/:id/pitch` | Regenerate the pitch |
-| `POST` | `/api/businesses/:id/status` | Mark `contacted` or `replied` |
-| `POST` | `/api/businesses/:id/video` | Start a Higgsfield video (`202`, or `400` without a key) |
-| `POST` | `/api/businesses/:id/video-url` | Attach an externally rendered ad `{url}` |
-| `DELETE` | `/api/businesses/:id` | Remove a preview; the site shows a removed page |
-| `POST` | `/api/reset` | Wipe state `{confirm: "RESET"}` |
-| `POST` | `/api/stripe/webhook` | Stripe `checkout.session.completed` |
-| `GET` | `/claimed?session_id=…` | Post-checkout landing; verifies and marks paid |
-| `GET` | `/s/:id` | The generated preview site |
-| `GET` | `/s/:id/claim` | `302` to the business's checkout link |
-| `GET` `POST` | `/s/:id/remove` | Confirm page, then the takedown |
-| `GET` | `/img/:key` | Hero image bytes from KV, cached for a day |
-| `WS` | `/agents/hq/main` | Live stream: `snapshot`, `event`, `business`, `stats`, `removed` |
-
-## Data model
-
-Types live in [`src/types.ts`](src/types.ts). The important ones, abridged:
+<br>
 
 ```ts
 type BizStatus = "scouted" | "extracting" | "building" | "critiquing" | "directing"
                | "ready" | "contacted" | "replied" | "paid" | "removed" | "error";
 
 interface Business {
-  id: string;                    // slug, unique
+  id: string;                          // slug, unique
   name: string; category: string;
   lat: number | null; lon: number | null; address: string | null;
-  website: string | null; phone: string | null; openingHours: string | null;
+  website: string | null; openingHours: string | null;
   osmId: string | null; osmTags: Record<string, string>;
   status: BizStatus;
-  brand: Brand | null;           // Archivist
-  site: SiteSpec | null;         // Builder, latest version
-  scores: ScoreVersion[];        // Critic, every version v1..vN
-  heroImage: string | null;      // Director, "/img/<kv-key>"
-  video: VideoState;             // Director, none | rendering | ready | error
-  pitch: { subject: string; body: string } | null;  // Closer
+  brand: Brand | null;                 // Archivist
+  site: SiteSpec | null;               // Builder: the shipped version
+  scores: ScoreVersion[];              // Critic: every version, v1..vN
+  heroImage: string | null;            // Director: "/img/<kv-key>"
+  video: VideoState;                   // none | rendering | ready | error
+  pitch: { subject: string; body: string } | null;   // Closer
   paymentUrl: string | null; paymentVerified: boolean;
   paidAt: number | null; amountCents: number | null;
   timings: Partial<Record<"scout" | "archivist" | "builder" | "critic" | "director" | "closer" | "total", number>>;
-  costCents: number;             // estimated model spend for this business
+  costCents: number;                   // estimated model spend, summed by the CFO
   error: string | null;
 }
 
 interface Brand {
   name: string; tagline: string; voice: string; vibe: string;
   palette: { primary: string; secondary: string; accent: string; background: string; text: string };
-  fonts: { heading: string; body: string };   // Google Fonts families
+  fonts: { heading: string; body: string };          // Google Fonts families
   offerings: { name: string; description: string; price?: string }[];
-  offeringsConfirmed: boolean;   // true only if taken from the business's own site
-  story: string;                 // factual, no invented history
-  sourceSignals: string[];       // what was actually read
+  offeringsConfirmed: boolean;         // true only if read off the business's own site
+  story: string;                       // factual, no invented history
+  sourceSignals: string[];             // exactly what was read
 }
 
 interface ScoreVersion {
-  version: number; score: number;          // 0-100
-  notes: string[]; slopHits: string[];
-  provider: string;                        // e.g. "OpenAI gpt-5-mini", "claude-sonnet-5", "workers-ai:llama-3.3-70b"
-  at: number;
+  version: number; score: number;      // 0-100
+  notes: string[]; slopHits: string[]; // Critic notes, banned phrases found
+  provider: string; at: number;
 }
 ```
 
-`AgentEvent` (`agent`, `kind`: info | success | warn | error | money, `text`, optional `bizId`) drives the channel. `Stats` powers the ribbon: scouted, built, taste-passed, contacted, replied, paid, revenue, spend, average and best build time.
+`AgentEvent` (`agent`, `kind`: info | success | warn | error | money, `text`, optional `bizId` and `data`) drives the channel; `Stats` drives the ribbon; `Snapshot` is businesses + the last 200 events + stats.
 
-## Ethics and safety
+</details>
 
-Cold Open builds things for real businesses that did not ask for them. That only works if it is scrupulously honest. The full policy is in **[docs/ETHICS.md](docs/ETHICS.md)**. The short version:
+<details>
+<summary><b>The money path, step by step</b></summary>
 
-- **Labeled.** Every preview has a sticky banner: *"Unofficial concept preview made for {name} by Cold Open — not the official site."*
-- **Not indexed.** `<meta name="robots" content="noindex,nofollow">` on every preview, so it never competes with the real site in search.
-- **One-click takedown.** **Remove this preview** is on every page. Removal takes effect immediately and the link shows a removed page.
-- **Nothing invented.** No reviews, testimonials, ratings, awards or prices that we did not read on the business's own site. Unconfirmed offerings carry no prices and are labeled *"Preview — owner to confirm"*. Unknown hours say *"Hours — owner to confirm"*.
-- **Honest outreach.** The Closer's pitch says what we made, that it is unofficial, what it costs and how to remove it. Nothing is sent automatically; a person reviews and sends it, and any follow-up honors opt-out.
-- **Polite crawling.** One homepage fetch per business, with a timeout and an identifying User-Agent. Overpass mirrors are hedged, not hammered: the next mirror starts only after 4.5 s of silence or a failure, and the losers are cancelled as soon as one answers. If all of them are down, the Scout reads a bundled snapshot instead of retrying. Honoring `robots.txt` and rate limits is a project rule for every contributor.
-- **No chains.** National brands are skipped at the Scout.
-- **Test mode.** The demo's checkout is Stripe test mode. Per-business Payment Links are only created with a test key.
+<br>
 
-## Business model
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Owner as Business owner
+    participant W as Worker
+    participant HQ as HQ Durable Object
+    participant S as Stripe
+    participant MC as Mission Control
+    Owner->>W: GET /s/:id/claim
+    W->>HQ: which checkout link?
+    HQ-->>W: per-business Payment Link, or the shared link + client_reference_id
+    W-->>Owner: 302 to Stripe, sets a 1-hour co_claim cookie
+    Owner->>S: pays $49 in test mode
+    S->>W: POST /api/stripe/webhook with Stripe-Signature
+    W->>HQ: forward
+    HQ->>HQ: check the signature if STRIPE_WEBHOOK_SECRET is set, then markPaid
+    S-->>Owner: redirect to /claimed?session_id=...
+    Owner->>W: GET /claimed
+    W->>HQ: session id + claim cookie
+    HQ->>S: retrieve the Checkout Session, when STRIPE_SECRET_KEY is set
+    HQ->>HQ: markPaid, idempotent, verified only if Stripe says paid
+    HQ-->>MC: money event, toast, revenue ticks up
+```
 
-- **$49 Launch Pack**, one time, through Stripe Checkout. The owner is buying a site that already exists, built from their own brand. No discovery call, no deposit, no waiting.
-- **Cost to produce is visible.** The CFO estimates model spend per business and Mission Control shows spend against revenue live. We do not quote a margin here because it depends on which models you configure.
-- **Why it can work:** the expensive part of agency sales is the time spent before a yes. Here that part is automated, so the pitch arrives with the product attached.
+The business is taken from the session's `client_reference_id`, then its metadata, then the claim cookie. Without Stripe keys, claims are still recorded, but as `paymentVerified: false`. See [Payment attribution](docs/ARCHITECTURE.md#9-payment-attribution).
 
-Today, a payment marks the business as paid and records the amount. Handover (custom domain, edits, hosting) is manual in this version and is at the top of the roadmap.
+</details>
+
+<p align="right"><sub><a href="#readme-top">↑ Back to top</a></sub></p>
+
+## Graceful degradation
+
+Cold Open runs end to end with **only Workers AI, KV and the Durable Object**. Every key upgrades one part; none is required.
+
+| Capability | With zero keys | Upgrade | Unlocked by |
+|---|---|---|---|
+| Scouting | OpenStreetMap Overpass, three mirrors hedged; the bundled OSM snapshot if all are down | — | — |
+| Name lookup | Nominatim, then Overpass | — | — |
+| Text model (Archivist, Builder, Critic, Closer) | Workers AI: Llama 3.3 70B and gpt-oss-120b | OpenAI `gpt-5-mini` (falls back to `gpt-4.1-mini`, `gpt-4o-mini`) ahead of Workers AI. **The live demo runs on this.** | `OPENAI_API_KEY` |
+| Text model, preferred | Not used | Claude (`claude-sonnet-5` by default) ahead of everything | `ANTHROPIC_API_KEY` starting `sk-ant-` |
+| When no model answers | Category-preset brand, factual template site, a labeled heuristic score, template pitch | — | — |
+| Brand extraction | The business's own homepage, parsed, plus the LLM | Taste Labs design-system extraction merged in | `TASTE_API_KEY` |
+| Hero image | FLUX.1 schnell → FLUX.2 klein → the business's own `og:image` → typographic hero | `gpt-image-1` → `dall-e-3` slot in after FLUX | `OPENAI_API_KEY` |
+| Launch video | Attach any video URL from the drawer | Higgsfield image-to-video from the hero frame, per card on demand (automatic after single builds only with the var `AUTO_VIDEO="1"`) | `HIGGSFIELD_API_KEY` (+ `HIGGSFIELD_API_SECRET`) |
+| Checkout link | Shared `PAYMENT_LINK` + `client_reference_id` | A dedicated $49 Payment Link per business (test keys only) | `STRIPE_SECRET_KEY` |
+| Payment on `/claimed` | Recorded from the claim cookie, as unverified | Checkout Session checked with Stripe; counted as verified only when paid | `STRIPE_SECRET_KEY` |
+| Webhook | No signature check: recorded as unverified, or verified by re-reading the session from Stripe when `STRIPE_SECRET_KEY` is set | HMAC-SHA256 signature, 5-minute tolerance, constant-time compare | `STRIPE_WEBHOOK_SECRET` |
+| Second opinion | The Critic only | A Brainbase managed agent reviews every finished site in the background | `BRAINBASE_API_KEY` |
+| Team visibility | The agent channel | Mirrored into Slack | `SLACK_WEBHOOK_URL` |
+| Workers AI quota | When Cloudflare returns error 4006, a circuit breaker skips Workers AI (text and images) until 00:00 UTC and re-probes every 10 minutes | — | — |
+
+`GET /api/config` reports which integrations are live and which model leads the chain, and Mission Control lights a pill for each.
+
+## Sponsor integrations
+
+Built for the Startup Speedrun Hackathon, whose sponsors were Brainbase Labs, Anthropic, Cloudflare and Stripe. The same facts, key by key, are in [Graceful degradation](#graceful-degradation) above.
+
+<details>
+<summary><b>How each sponsor is used, and what was live on Sep 28</b></summary>
+
+<br>
+
+| Sponsor | What Cold Open uses | Code | On the live demo |
+|---|---|---|---|
+| **Cloudflare** | Workers with static assets, one Agents SDK Durable Object (SQLite, WebSockets, durable alarms), KV for media, Workers AI for Llama 3.3, gpt-oss-120b and FLUX | [`index.ts`](src/index.ts), [`hq.ts`](src/hq.ts) | **Core.** It is the whole app. |
+| **Stripe** | Payment Links (one per business with a test key), Checkout Session verification, HMAC-verified webhooks, no SDK | [`stripe.ts`](src/integrations/stripe.ts) | **Live, in test mode.** Revenue: $0. |
+| **Brainbase Labs** | A managed agent (`POST /v2/threads`, harness `claude_code`) that fetches each finished preview and returns a two-sentence verdict and a 0–100 score | [`brainbase.ts`](src/integrations/brainbase.ts) | **Used live.** Scored Underdogs Cantina 76 in about 146 s. Optional; never blocks a build. |
+| **Anthropic** | Claude leads the LLM chain whenever the key starts with `sk-ant-`; the Brainbase reviewer asks for Claude Haiku on the `claude_code` harness | [`llm.ts`](src/llm.ts) | **Supported, not the live brain.** The live deployment runs on OpenAI `gpt-5-mini`. |
+
+| Other service | Role | Status |
+|---|---|---|
+| **OpenAI** | `gpt-5-mini` for text; `gpt-image-1` and `dall-e-3` in the image chain | The live brain |
+| **OpenStreetMap** (Overpass, Nominatim, tiles) | Scouting, name lookup, preview maps | Always on, no key |
+| **Taste Labs** | Brand extraction in the Archivist. A scoring helper exists in [`taste.ts`](src/integrations/taste.ts) but is not called by the pipeline today | Optional |
+| **Higgsfield** | Image-to-video launch clips | Optional, on demand |
+| **Slack** | Mirrors the agent channel | Optional |
+
+API facts, credentials, verification commands and the assumptions made for each integration are in **[docs/INTEGRATIONS.md](docs/INTEGRATIONS.md)**.
+
+</details>
+
+## API
+
+JSON in, JSON out. The Worker forwards `/api/*` to the HQ instance `main`. Every request and response shape, error code and a `curl` example for each route: **[docs/API.md](docs/API.md)**.
+
+| Method | Path | What it does |
+|---|---|---|
+| `GET` | `/api/state` | Full snapshot: businesses, the last 200 events, stats |
+| `GET` | `/api/config` | Public URL, HQ location, live integrations, active LLM, Stripe mode, `tasteBar`, `maxVersions`, price |
+| `GET` | `/api/health` | `{ ok, businesses, running }` |
+| `GET` | `/api/events?after=&limit=` | Event log, incrementally |
+| `GET` `POST` | `/api/businesses` | List businesses, or add one by name (optional website, category, address) |
+| `GET` `DELETE` | `/api/businesses/:id` | One business, or remove its preview |
+| `POST` | `/api/businesses/:id/build` | Build or rebuild in the background (`202`) |
+| `POST` | `/api/businesses/:id/pitch` | Rewrite the pitch |
+| `POST` | `/api/businesses/:id/status` | Mark `contacted` or `replied` |
+| `POST` | `/api/businesses/:id/video` · `/video-url` | Start a Higgsfield clip, or attach a video URL |
+| `POST` | `/api/scout` | Sweep the block `{ radius?: 450, limit?: 24 }` |
+| `POST` | `/api/run-block` | Build the nearest scouted businesses, 3 at a time `{ limit?: 8 }` (`202`) |
+| `POST` | `/api/reset` | Wipe the board `{ "confirm": "RESET" }` |
+| `POST` | `/api/stripe/webhook` | `checkout.session.completed` and `checkout.session.async_payment_succeeded` |
+| `GET` | `/s/:id` · `/s/:id/claim` · `/s/:id/remove` | The preview, the redirect to checkout, the removal page (`POST` confirms) |
+| `GET` | `/claimed?session_id=…` | Post-checkout page; verifies and marks paid |
+| `GET` | `/img/:key` | Hero image bytes from KV, cached for a day |
+| `WS` | `/agents/hq/main` | Live stream of `snapshot`, `event`, `business`, `stats`, `removed` and `pong` messages |
+
+> [!CAUTION]
+> The API has **no authentication**. That is deliberate for a public hackathon demo on public data, and wrong for anything else. Before real use, put Mission Control, `/api/*` (except the webhook) and `/agents/*` behind Cloudflare Access or similar. See [SECURITY.md](SECURITY.md). Try write calls against your own deployment or `npm run dev`, never the public demo.
+
+## Configuration
+
+<details>
+<summary><b>Bindings, vars, secrets and tunables</b></summary>
+
+<br>
+
+**Bindings** ([`wrangler.jsonc`](wrangler.jsonc))
+
+| Binding | Type | Purpose |
+|---|---|---|
+| `HQ` | Durable Object, class `HQ`, SQLite (migration `v1`) | All state, the pipeline, WebSocket broadcast |
+| `MEDIA` | KV namespace | Hero images under `img:{id}:{timestamp}` (plus the Taste Labs cache when keyed) |
+| `AI` | Workers AI | Zero-key text models and the two FLUX image models |
+| `ASSETS` | Static assets from `./public` | Mission Control |
+
+**Vars**
+
+| Var | Default | Purpose |
+|---|---|---|
+| `PUBLIC_URL` | the public demo's URL | Absolute links in pitches, per-business Stripe redirects, the Brainbase review and Slack. **Change it for your deployment.** |
+| `PAYMENT_LINK` | the public demo's Stripe test link | Shared checkout; `client_reference_id=<id>` is appended per business. **Replace or clear it.** |
+| `CLAUDE_MODEL` | `claude-sonnet-5` | Used when `ANTHROPIC_API_KEY` starts with `sk-ant-` |
+| `HQ_LAT`, `HQ_LON` | `37.7786`, `-122.3893` | Scout center (101 Townsend St) |
+| `OPENAI_MODEL` (optional) | `gpt-5-mini` | First OpenAI model to try |
+| `AUTO_VIDEO` (optional) | unset | `"1"` starts a Higgsfield clip after each single build (never during block runs) |
+| `HIGGSFIELD_MODEL` (optional) | unset | A Higgsfield endpoint id to try first |
+
+**Secrets** (all optional; `npx wrangler secret put NAME`)
+
+| Secret | Unlocks |
+|---|---|
+| `OPENAI_API_KEY` | OpenAI as the brain, plus `gpt-image-1` / `dall-e-3` heroes |
+| `ANTHROPIC_API_KEY` | Claude as the brain when it starts with `sk-ant-`. A plain `sk-` key here is treated as an OpenAI key |
+| `STRIPE_SECRET_KEY` | Verified payments on `/claimed`; a dedicated Payment Link per business (test keys only) |
+| `STRIPE_WEBHOOK_SECRET` | Signature-verified webhooks |
+| `BRAINBASE_API_KEY` | The Brainbase second opinion |
+| `TASTE_API_KEY` | Taste Labs brand extraction |
+| `HIGGSFIELD_API_KEY`, `HIGGSFIELD_API_SECRET` | Image-to-video clips |
+| `SLACK_WEBHOOK_URL` | The Slack mirror |
+
+**Tunables in code** (top of [`src/hq.ts`](https://github.com/vnmoorthy/coldopen/blob/v1.0.0/src/hq.ts#L48-L69)): `TASTE_BAR = 85`, `MAX_VERSIONS = 3`, `BLOCK_CONCURRENCY = 3`, plus per-stage timeouts. [docs/TASTE-GATE.md](docs/TASTE-GATE.md#tuning-taste_bar-and-max_versions) explains the trade-offs before you change them.
+
+</details>
+
+Step-by-step setup, including Stripe and custom domains: [docs/DEPLOY.md](docs/DEPLOY.md).
+
+<p align="right"><sub><a href="#readme-top">↑ Back to top</a></sub></p>
+
+## Testing
+
+```bash
+npm test             # Vitest: 153 tests in 10 files, no network, no secrets
+npm run typecheck    # tsc on src/ and test/
+```
+
+[CI](.github/workflows/ci.yml) runs both on every push and pull request (Node 22; Vitest 5 needs Node 22.12 or newer). Every network call in the suite is stubbed.
+
+What the suite covers:
+
+- **LLM plumbing:** the loose JSON parser (fences, prose, trailing commas, truncated replies, `<think>` blocks), key routing by prefix, the Claude → OpenAI fallback chain and per-call cost.
+- **The Critic:** banned-phrase matching, scrubbing, the unsupported-claims check against OSM tags and the brand story, and no-model scoring.
+- **The Builder and Scout:** hours formatting, theme choice, no prices on unconfirmed menus; chain, vacant and duplicate filtering, and the offline snapshot fallback.
+- **Rendering:** the banner, `noindex` and claim/remove links in all three themes, and an XSS test that feeds `<script>`, attribute-breaking strings and `javascript:` URLs into every field.
+- **Stripe:** webhook signatures (valid, tampered, wrong secret, expired, future, multiple `v1`), live keys never creating links, and key redaction in errors.
+- **Brainbase:** verdict parsing, score clamping, 401/402 handling, and never throwing.
+- **End to end without keys:** Archivist → Builder → Critic → Closer → render against a fake website.
+
+Not covered yet: `src/index.ts` and `src/hq.ts` need the Workers runtime rather than plain Node. How to add tests is in [CONTRIBUTING.md](CONTRIBUTING.md#tests-and-typecheck).
+
+## Documentation
+
+| Read | For |
+|---|---|
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Routing, the HQ lifecycle, schema, WebSocket protocol, LLM and image chains, costs, payment attribution, failure modes, limits |
+| [docs/AGENTS.md](docs/AGENTS.md) | Each agent's inputs, outputs, prompts, guardrails and extension points |
+| [docs/TASTE-GATE.md](docs/TASTE-GATE.md) | The rubric, banned phrases, fact check, live results and tuning |
+| [docs/DEPLOY.md](docs/DEPLOY.md) | Deploying your own, Stripe, custom domains, local dev, costs, troubleshooting |
+| [docs/API.md](docs/API.md) | Every route with shapes and `curl` examples |
+| [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) | Every integration's API facts, credentials and assumptions |
+| [docs/ETHICS.md](docs/ETHICS.md) | The four promises and the rules for content, data, outreach and payments |
+| [docs/FAQ.md](docs/FAQ.md) | Questions from business owners, about law and data, and about running it |
+| [SPEC.md](SPEC.md) | The original one-day build spec |
+| [CHANGELOG.md](CHANGELOG.md) · [ROADMAP.md](ROADMAP.md) | What changed, and what is next |
 
 ## Roadmap
 
-Planned, not built:
+v1.0.0 was built in one day. Next, in rough order ([full roadmap](ROADMAP.md)):
 
-- [ ] **Custom domains** through Cloudflare Registrar, so a claim ends with the site on the owner's own domain.
-- [ ] **Stripe Connect payouts** for partner designers and local agencies who run their own Cold Open block.
-- [ ] **Real email outreach** through Cloudflare Email Service, with suppression lists, unsubscribe links and physical address per CAN-SPAM.
-- [x] **Brainbase second opinion** on every finished site (`POST /v2/threads`).
-- [ ] **Agent evals** managed with Brainbase, to regression-test the Archivist, Builder and Critic across a fixed set of businesses.
-- [ ] **Multi-city.** Named blocks with their own HQ coordinates, and a map that zooms out.
-- [ ] Owner-side editor for claimed sites, so fixes do not need us.
+- **Fix what we know is wrong:** show the shipped score on previews, honor `robots.txt`, report verified and unverified revenue separately, serve only `img:` keys from `/img/:key`, make the block's place names configurable, and keep the removal list across resets.
+- **Make it trustworthy for real use:** operator authentication and rate limits, the Brainbase verdict stored on the business, Taste Labs brand adherence as a background score, custom domains, an owner-side editor and automated handover after payment.
+- **Grow carefully:** multi-city boards, and real email outreach only with suppression lists, a working unsubscribe and a person approving every send.
 
-Ideas and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
+**Not planned, by design:** sending email without a person approving it, generated reviews or ratings, indexable previews, removal that requires an account, or selling scouted data.
 
 ## FAQ
 
 <details>
+<summary><b>I found a preview of my business. How do I remove it?</b></summary>
+
+<br>
+
+Press **Remove this preview** in the banner (or the footer) and confirm. It takes effect immediately for everyone with the link, the images are deleted, and the Scout will not add your business again. No account, email or reason needed. More in [docs/FAQ.md](docs/FAQ.md#i-found-a-preview-of-my-business-how-do-i-remove-it).
+</details>
+
+<details>
 <summary><b>Is this spam?</b></summary>
 
-No. Cold Open does not send anything on its own. The Closer drafts a pitch; a person reads it, and sends it with the Copy or mailto buttons in the drawer if they choose to. **Mark contacted** and **Mark replied** are manual. Any future automated outreach will ship with opt-out and suppression built in (see the roadmap).
+<br>
+
+Cold Open sends nothing on its own; there is no email integration in the code. The Closer drafts a short pitch, and a person decides whether to send it with **Copy pitch** or a `mailto:` link. **Mark contacted** and **Mark replied** are manual. Any future automated outreach must follow the rules in [docs/ETHICS.md](docs/ETHICS.md#rules-for-outreach).
 </details>
 
 <details>
-<summary><b>Are you pretending to be the business?</b></summary>
+<summary><b>How is this different from prompt-to-site builders?</b></summary>
 
-No. Every preview says it is an unofficial concept preview made by Cold Open, in a banner that stays on screen. Previews are `noindex,nofollow` and are not linked from anywhere a customer of the business would find them.
-</details>
+<br>
 
-<details>
-<summary><b>What if an owner wants it gone?</b></summary>
-
-They press **Remove this preview** on the site, confirm once, and it is gone. The status becomes `removed`, the link shows a removed page, and Mission Control drops the card. No email, no form, no account.
-</details>
-
-<details>
-<summary><b>Does it make up menu items or prices?</b></summary>
-
-No. If offerings come from the business's own site, `offeringsConfirmed` is true and they are shown as read. Otherwise the Builder describes category-typical offerings without prices and labels the section "Preview — owner to confirm". Reviews, ratings and awards are never generated.
+Those start from a prompt someone typed. Cold Open starts from a map pin: the input is a real business's own website and OSM data, every fact is checked against that evidence, and the output is graded by a rubric that code, not the model, turns into a number.
 </details>
 
 <details>
 <summary><b>Do I need any API keys?</b></summary>
 
-No. With only the Workers AI, KV and Durable Object bindings, everything works: scouting, brand extraction, building, the taste gate, hero images, pitches and the checkout link. Keys upgrade the brain (OpenAI or Claude) and add image fallbacks (OpenAI), add video (Higgsfield), verify payments (Stripe) and mirror to Slack. The public demo runs with an OpenAI key. See [Graceful degradation](#graceful-degradation).
-</details>
+<br>
 
-<details>
-<summary><b>Why a Durable Object instead of a database?</b></summary>
-
-HQ is a single coordinator with its own SQLite storage and a WebSocket to every open Mission Control. State changes and broadcasts happen in one place, in order, so seven agents working on many businesses never race each other. There is no connection pool, no ORM and no second service to deploy.
+No. With only the Workers AI, KV and Durable Object bindings, the whole loop runs: scouting, brand extraction, building, the taste gate, hero images, pitches and the checkout link. Keys upgrade parts of it; see [Graceful degradation](#graceful-degradation). The Workers AI free daily allocation runs out quickly, so an OpenAI or Claude key, or the Workers Paid plan, is recommended for more than a short trial.
 </details>
 
 <details>
 <summary><b>Are the payments real?</b></summary>
 
-The public demo uses a Stripe **test mode** Payment Link. Use the test card `4242 4242 4242 4242`. No real money moves.
+<br>
+
+No. The public demo uses a Stripe **test-mode** Payment Link: use test card `4242 4242 4242 4242` with any future date and any CVC. No real money moves, and revenue so far is $0. Today a payment marks the business paid and records the amount; handover (domain, edits) is manual and on the roadmap.
 </details>
 
 <details>
-<summary><b>Does Cold Open use the Brainbase API?</b></summary>
+<summary><b>Can I run it for another city?</b></summary>
 
-Yes, optionally. When `BRAINBASE_API_KEY` is set, every finished site gets an independent second opinion: HQ opens a Brainbase managed-agent thread (`POST /v2/threads`, harness `claude_code`), the agent fetches the live preview itself and returns a two-sentence verdict with a 0-100 score, and the verdict posts to the channel next to our own Critic's score. It runs in the background and never blocks or changes a build. Details and the assumptions we could not verify are in [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) (section 9).
+<br>
+
+Yes: set `HQ_LAT` and `HQ_LON` and redeploy. The Scout, the map and distances follow. Some copy is still written for San Francisco (neighborhood names, a landmark, pitch wording), and the offline OSM snapshot covers only the original block. [docs/FAQ.md](docs/FAQ.md#can-i-run-it-for-a-different-city) lists every place to change.
 </details>
 
-<details>
-<summary><b>Why is it called Cold Open?</b></summary>
+More, including costs, offline mode, build times, why a Durable Object instead of a database, and where the name comes from: **[docs/FAQ.md](docs/FAQ.md)**.
 
-In television, the cold open is the scene that plays before the title card. You are already in the story before anyone introduces it. Here, the work plays before the pitch.
-</details>
-
-## Built at
-
-Cold Open was built in a single day at the **Startup Speedrun Hackathon** at **Cloudflare HQ**, 101 Townsend St, San Francisco, on **September 28, 2026**. The Scout's default search center is the building we built it in.
-
-Thank you to the sponsors, **Brainbase Labs**, **Anthropic**, **Cloudflare** and **Stripe**, and to **Taste Labs** for the panel. Thank you also to:
-
-- [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors. Map data © OpenStreetMap contributors, available under the Open Database License (ODbL). This includes the bundled fallback snapshot `src/pipeline/osm-snapshot.json`: 87 elements within 600 m of 101 Townsend St, captured on Sep 28, 2026 through the `maps.mail.ru` Overpass mirror.
-- The public [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API) instances and [Nominatim](https://nominatim.org) that answer the Scout's queries.
-- [OpenAI](https://platform.openai.com) for `gpt-5-mini`, `gpt-image-1` and `dall-e-3`, which the live deployment runs on.
-- [Leaflet](https://leafletjs.com), for the map in Mission Control. Tile providers are credited in the map's attribution control.
-- [Black Forest Labs](https://bfl.ai) for FLUX, served on Workers AI.
-- [Higgsfield](https://higgsfield.ai) and [Taste Labs](https://tastelabs.com) for the optional video and brand integrations.
-
-The 10-slide pitch deck is [`deck/ColdOpen.pptx`](deck/ColdOpen.pptx).
+<p align="right"><sub><a href="#readme-top">↑ Back to top</a></sub></p>
 
 ## Contributing
 
-Issues and pull requests are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md): it covers local setup, the project's hard rules (no dead buttons, no fabricated data, graceful degradation, no extra dependencies) and how to add a new agent. Please read [docs/ETHICS.md](docs/ETHICS.md) before changing anything that touches generated sites or outreach.
+Issues and pull requests are welcome. Start with **[CONTRIBUTING.md](CONTRIBUTING.md)**: dev setup, the hard rules (no dead buttons, no fabricated data, graceful degradation, no extra dependencies), how to add an agent or an integration, and the pull request checklist. Please read [docs/ETHICS.md](docs/ETHICS.md) before changing anything that touches generated sites or outreach.
 
-Found a bug? [Open an issue](https://github.com/vnmoorthy/coldopen/issues/new?template=bug_report.md). Have an idea? [Request a feature](https://github.com/vnmoorthy/coldopen/issues/new?template=feature_request.md).
+Good first contributions are the small, well-scoped fixes under **Near** in [ROADMAP.md](ROADMAP.md#near-fix-what-we-know-is-wrong). Open an issue for the one you pick (or comment on an existing one) so work does not collide.
+
+| Channel | Best for |
+|---|---|
+| [Discussions](https://github.com/vnmoorthy/coldopen/discussions) | Questions, ideas, and sharing a run from your own block |
+| [Bug report](https://github.com/vnmoorthy/coldopen/issues/new?template=bug_report.yml) | Something broken that you can reproduce |
+| [Feature request](https://github.com/vnmoorthy/coldopen/issues/new?template=feature_request.yml) | A scoped change with a clear use case |
+| [Security advisory](https://github.com/vnmoorthy/coldopen/security/advisories/new) | Anything security-sensitive. Never a public issue |
+
+Everyone taking part agrees to the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Security
+
+Please report vulnerabilities privately, as described in **[SECURITY.md](SECURITY.md#reporting-a-vulnerability)**, and test against your own deployment or `npm run dev`, not the public demo. SECURITY.md also lists the known limitations of v1.0.0 and how the code protects itself: internal-route headers, output escaping, safe response headers and constant-time webhook checks.
+
+## Acknowledgements
+
+Built in a single day at the **Startup Speedrun Hackathon** at **Cloudflare HQ**, 101 Townsend St, San Francisco, on **September 28, 2026**. The Scout's default search center is the building it was built in.
+
+Thank you to the sponsors, **[Brainbase Labs](https://brainbaselabs.com)**, **[Anthropic](https://www.anthropic.com)**, **[Cloudflare](https://www.cloudflare.com)** and **[Stripe](https://stripe.com)**, and to **[Taste Labs](https://tastelabs.com)**. Cold Open also stands on:
+
+- **[OpenStreetMap](https://www.openstreetmap.org/copyright) contributors.** Map data © OpenStreetMap contributors, available under the [Open Database License (ODbL)](https://opendatacommons.org/licenses/odbl/). That includes the bundled snapshot [`src/pipeline/osm-snapshot.json`](src/pipeline/osm-snapshot.json): 87 elements within 600 m of 101 Townsend St, captured on Sep 28, 2026.
+- The public [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API) instances and [Nominatim](https://nominatim.org), which answer the Scout's queries.
+- [OpenAI](https://platform.openai.com), whose `gpt-5-mini` runs the live deployment, with `gpt-image-1` and `dall-e-3` in the image chain.
+- [Black Forest Labs](https://bfl.ai) for FLUX, served on Workers AI, and [Meta](https://www.llama.com) for Llama 3.3.
+- [Leaflet](https://leafletjs.com), loaded from [unpkg](https://unpkg.com), for the map in Mission Control, drawn on [Esri](https://www.esri.com) basemap tiles, and [Google Fonts](https://fonts.google.com) for the type in Mission Control and the previews.
+- [api.qrserver.com](https://goqr.me/api/), which draws the Live challenge's QR codes.
+- [Higgsfield](https://higgsfield.ai) for the optional video.
+
+The 10-slide pitch deck is [`deck/ColdOpen.pptx`](deck/ColdOpen.pptx).
 
 ## License
 
 [MIT](LICENSE) © 2026 vnmoorthy
 
-<div align="center">
 <br>
-<sub>Cold Open · the work before the sale · <a href="https://coldopen.vnarasingamoorthy.workers.dev">coldopen.vnarasingamoorthy.workers.dev</a></sub>
+
+<div align="center">
+
+<b>Cold Open</b> · the work before the sale · <a href="https://coldopen.vnarasingamoorthy.workers.dev">live demo</a>
+
+<sub>If you'd use the Critic loop or the one-Durable-Object pattern in your own project, a star helps other builders find it.</sub>
+
+<sub><a href="#readme-top">↑ Back to top</a></sub>
+
 </div>
